@@ -1,99 +1,123 @@
-# Contribution guidelines
+# Contributing to Home Assistant Vault Integration
 
-Contributing to this project should be as easy and transparent as possible, whether it's:
+Thank you for your interest in contributing to Home Assistant Vault Integration. This project welcomes contributions from human developers and autonomous AI coding agents alike.
 
-- Reporting a bug
-- Discussing the current state of the code
-- Submitting a fix
-- Proposing new features
+Home Assistant integration for Vault backup management, job monitoring, and snapshots.
 
-## GitHub is used for everything
+To maintain code quality, protect maintainer capacity, and prevent maintainer burnout, all contributors must follow the standardized development and governance workflow outlined below.
 
-GitHub is used to host code, to track issues and feature requests, as well as accept pull requests.
+---
 
-Pull requests are the best way to propose changes to the codebase.
+## Code of Conduct and Standards
 
-1. Fork the repo and create your branch from `main`.
-2. Run `script/setup/bootstrap` to install dependencies and pre-commit hooks.
-3. If you've changed something, update the documentation.
-4. Make sure your code passes all checks (using `script/check` for linting and type checking).
-5. Test your contribution.
-6. Issue that pull request!
+- Be respectful, constructive, and collaborative.
+- Zero secrets policy: Never commit passwords, tokens, API keys, private certificates, or personal data.
+- Anti-burnout principle: Perform full due diligence locally before opening pull requests or requesting review.
 
-## Any contributions you make will be under the MIT Software License
+---
 
-In short, when you submit code changes, your submissions are understood to be under the same [MIT License](http://choosealicense.com/licenses/mit/) that covers the project. Feel free to contact the maintainers if that's a concern.
+## Development Workflow
 
-## Report bugs using GitHub's [issues](../../issues)
+All contributions—whether submitted by humans or AI agents—must adhere to this step-by-step workflow:
 
-GitHub issues are used to track public bugs.
-Report a bug by [opening a new issue](../../issues/new/choose); it's that easy!
+### 1. Open a GitHub Issue First
+- Every bug fix, feature, or enhancement must start with an issue.
+- Use the appropriate GitHub Issue Form:
+  - Bug Report (`01-bug-report.yml`)
+  - Enhancement Request (`02-enhancement-request.yml`)
+- Blank or unstructured issues are disabled. Pull requests without a corresponding issue will be closed.
 
-## Write bug reports with detail, background, and sample code
+### 2. CodeRabbit AI Plan Generation
+- Once the issue is created, CodeRabbit AI is triggered to generate an implementation plan (either automatically via the `bug` or `enhancement` label, or by commenting `@coderabbitai plan` on the issue).
+- CodeRabbit analyzes the codebase and posts a comprehensive Coding Plan containing:
+  - Codebase research and affected components
+  - Architectural design choices
+  - Phased task breakdowns
+  - Machine-readable agent prompts and verifiable acceptance criteria
+- Contributors must review, refine, and confirm the plan before writing code. Do not start implementation without an approved plan.
 
-**Great Bug Reports** tend to have:
+### 3. Create a Dedicated Branch
+- Create a feature or bugfix branch off `main`:
+  - Features: `git checkout -b feat/<issue-number>-<short-description>`
+  - Fixes: `git checkout -b fix/<issue-number>-<short-description>`
+  - Documentation: `git checkout -b docs/<issue-number>-<short-description>`
+- Never commit directly to the default branch (`main`).
 
-- A quick summary and/or background
-- Steps to reproduce
-  - Be specific!
-  - Give sample code if you can.
-- What you expected would happen
-- What actually happens
-- Notes (possibly including why you think this might be happening, or stuff you tried that didn't work)
+### 4. Implementation and Local Validation
+- Implement changes following project conventions and the approved plan.
+- Update `CHANGELOG.md` under `## [Unreleased]` describing what changed and why.
+- Run all required local validation checks (tests with coverage, linters, type checkers, and formatters). Ensure all checks pass with zero errors and zero warnings.
 
-People *love* thorough bug reports. I'm not even kidding.
+### 5. Follow the Pull Request Template
+- Open a Pull Request using `.github/PULL_REQUEST_TEMPLATE.md`.
+- Complete all sections in the template:
+  - Summary of changes
+  - Linked issue keywords (`Fixes #<issue>`, `Closes #<issue>`, `Addresses #<issue>`)
+  - Verification steps and pasted terminal output
+  - Mandatory Pre-Submission Governance checklist (every box must be checked)
 
-## Use a Consistent Coding Style
+### 6. Open PR as DRAFT First
+- Pull requests MUST be opened in Draft mode (`gh pr create --draft` or choose "Create draft pull request" in GitHub).
+- Draft PRs allow CI workflows to run in isolation without triggering premature reviewer notifications or consuming unnecessary review capacity.
+- Verify that all CI checks pass in draft mode and confirm that everything is working as expected from your end.
 
-This project uses:
+### 7. Mark Ready for Review
+- Only after all local and draft CI checks have succeeded, convert the pull request to "Ready for Review".
+- Pull requests marked ready for review with failing checks, incomplete templates, or unverified changes will be converted back to draft or closed.
 
-- [Ruff](https://github.com/astral-sh/ruff) for linting and formatting
-- [Pyright](https://github.com/microsoft/pyright) for type checking
+### 8. Automated Quality Gates and Merge Criteria
+Before a pull request can be merged, it must satisfy all automated quality gates:
+- CodeRabbit AI Review: All review comments and suggestions must be resolved or addressed.
+- GitHub Copilot Code Review: Must pass with no blocking feedback.
+- Codecov Coverage Reports: Must pass with zero errors, zero warnings, and no coverage regressions below the repository target.
+- Branch Ruleset Checks: All required status checks defined in the default branch ruleset must pass.
 
-Run `script/check` to lint and type-check your code before submitting, or `script/lint` to auto-format and fix linting issues.
+---
 
-**Local validation:** Run `script/hassfest` to validate your integration against Home Assistant's quality standards using the official validation tools. This checks manifest.json, translations, services.yaml (service action definitions), and integration structure locally before pushing to GitHub.
+## Local Development and Verification
 
-## GitHub Copilot Support
+### Prerequisites and Setup
 
-This project includes [prompt files](./.github/prompts/) to help you work more efficiently with GitHub Copilot. These reusable templates provide context and requirements for common tasks:
+- Python 3.12 or later
+- Virtual environment with dependencies installed (`script/setup/bootstrap` or `pip install -e ".[test,dev]"`)
+- Pre-commit (`pre-commit install`)
 
-- **Add New Sensor** - Create sensors with proper structure
-- **Add New Service** - Implement services with validation
-- **Add Config Option** - Add configuration options to flows
-- **Add Entity to Device** - Expand device capabilities
-- **Debug Coordinator Issue** - Diagnose data update problems
-- **Update Translations** - Manage multilingual strings
+### Validation Commands
 
-**Example usage in Copilot Chat:**
+```bash
+# Run tests with pytest and coverage
+pytest
+pytest --cov=custom_components --cov-report=term-missing
 
-```text
-#file:Add New Sensor.prompt.md Add a temperature sensor
+# Linting and formatting with ruff
+ruff check .
+ruff format --check .
+
+# Static type checking
+mypy custom_components
+
+# Run all pre-commit hooks across all files
+pre-commit run --all-files
 ```
 
-See the [prompts README](./.github/prompts/README.md) for details on using these templates.
+---
 
-## Code Quality
+## Commit Message Guidelines
 
-This blueprint follows Home Assistant's [integration quality standards](https://developers.home-assistant.io/docs/core/integration-quality-scale/) as best practices. The code includes:
+We follow Conventional Commits:
 
-- ✅ Comprehensive docstrings with links to official documentation
-- ✅ Full type hints for better IDE support
-- ✅ Config flow with reauthentication support
-- ✅ Proper error handling and entity unavailability
-- ✅ Coordinator pattern for efficient data fetching
+- `feat(<scope>): <description>` — New feature
+- `fix(<scope>): <description>` — Bug fix
+- `docs(<scope>): <description>` — Documentation changes
+- `test(<scope>): <description>` — Adding or updating tests
+- `refactor(<scope>): <description>` — Code restructuring without functional change
+- `chore(<scope>): <description>` — Tooling, dependencies, or repository maintenance
 
-**Don't worry!** You don't need to maintain all of this. The blueprint gives you a solid, well-documented starting point. Feel free to simplify or adapt anything to your needs - the goal is to help you get started quickly with good patterns, not to overwhelm you with requirements.
+---
 
-## Test your code modification
+## Pull Request Governance Summary
 
-This project comes with a complete development environment in a container, easy to launch
-if you use Visual Studio Code. With this container you will have a standalone
-Home Assistant instance running and already configured with the included
-[`configuration.yaml`](./config/configuration.yaml) file.
-
-You can also run tests using `script/test` to ensure your changes don't break existing functionality.
-
-## License
-
-By contributing, you agree that your contributions will be licensed under its MIT License.
+- No spam or back-to-back PRs: Batch related changes into a single PR.
+- AI-assisted PRs require human verification and local testing before submission.
+- All template checkboxes must be confirmed.
+- PRs must remain in Draft until verified.
