@@ -1,6 +1,6 @@
 # Path labels (actions/labeler), using the organization label set.
 # The bug/enhancement type label is applied by the shared PR labeler workflow, which
-# picks exactly one type. See STANDARDS.md in tinkerologie/.github.
+# applies at most one type. See STANDARDS.md in tinkerologie/.github.
 
 documentation:
   - changed-files:
