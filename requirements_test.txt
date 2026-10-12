@@ -17,4 +17,5 @@
 # Testing utilities for Home Assistant custom components
 # Provides additional fixtures and utilities specifically for custom component testing
 pytest-homeassistant-custom-component==0.13.367
-syrupy==6.1.1
+# syrupy is pinned exactly by pytest-homeassistant-custom-component; do not pin it
+# here as well, or Dependabot bumps it past that pin and the install fails.
