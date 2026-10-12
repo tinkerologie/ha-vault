@@ -491,7 +491,7 @@ Both options give you the same fully-configured development environment with Hom
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details. Earlier releases were MIT licensed; see [NOTICE](NOTICE).
 
 [commits-shield]: https://img.shields.io/github/commit-activity/y/ruaan-deysel/ha-vault.svg?style=for-the-badge
 [commits]: https://github.com/tinkerologie/ha-vault/commits/main
