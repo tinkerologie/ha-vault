@@ -1,31 +1,31 @@
 name: Validate
 
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: "0 0 * * *"
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
-    branches:
-      - main
+    types: [opened, synchronize, reopened, ready_for_review]
+  schedule:
+    - cron: 0 0 * * *
+  workflow_dispatch:
 
 permissions: {}
 
 jobs:
   hassfest: # https://developers.home-assistant.io/blog/2020/04/16/hassfest
-    name: Hassfest validation
+    name: Hassfest
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+        with:
+          persist-credentials: false
       - name: Run hassfest validation
         uses: home-assistant/actions/hassfest@06749dd8c0b54f350bc69c8752456cee498808a3 # master
 
   hacs: # https://github.com/hacs/action
-    name: HACS validation
+    name: HACS
     runs-on: ubuntu-latest
     steps:
       - name: Run HACS validation
@@ -34,3 +34,7 @@ jobs:
           category: integration
           # Remove this 'ignore' key when you have added brand images for your custom integration to https://github.com/home-assistant/brands
           ignore: brands
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}

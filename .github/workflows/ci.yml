@@ -1,35 +1,83 @@
-name: Test
+name: CI
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
-    branches:
-      - main
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  ruff:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: 0.9.3
+          enable-cache: true
+          cache-dependency-glob: '**/requirements*.txt'
+
+      - name: Cache Home Assistant installation
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .local/ha-venv
+          key: ha-venv-${{ runner.os }}-py314-lint-${{ hashFiles('requirements_dev.txt') }}
+          restore-keys: |
+            ha-venv-${{ runner.os }}-py314-lint-
+
+      - name: Install lint dependencies
+        run: |
+          if [ ! -d .local/ha-venv ] || [ ! -x .local/ha-venv/bin/python3 ]; then
+            rm -rf .local/ha-venv
+            uv venv .local/ha-venv
+          fi
+          source .local/ha-venv/bin/activate
+          uv pip install --upgrade --requirement requirements_dev.txt
+          uv pip install --upgrade ruff
+
+      - name: Lint check
+        run: script/lint-check
+
   backend:
-    name: Backend tests
+    name: Test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+        with:
+          persist-credentials: false
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.14"
+          python-version: '3.14'
 
       - name: Install uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
-          version: "0.9.3"
+          version: 0.9.3
           enable-cache: true
-          cache-dependency-glob: "**/requirements*.txt"
+          cache-dependency-glob: '**/requirements*.txt'
 
       - name: Get Home Assistant version
         id: ha_version
@@ -54,7 +102,7 @@ jobs:
         run: script/test
 
   frontend:
-    name: Frontend test & Playwright
+    name: Frontend
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -63,10 +111,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+        with:
+          persist-credentials: false
       - name: Set up Node
         uses: actions/setup-node@54337e0d02de9202d0948aaff36ad556375497b9 # v7.0.0
         with:
-          node-version: "22"
+          node-version: '22'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 

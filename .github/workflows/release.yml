@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   publish:
-    name: Publish release from manifest version
+    name: Publish
     runs-on: ubuntu-latest
     permissions:
       contents: write
