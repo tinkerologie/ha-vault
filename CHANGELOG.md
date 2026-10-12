@@ -8,6 +8,7 @@ The changelog uses date sections in `YYYY.MM.DD` format.
 
 ### Changed
 
+- Dependabot also updates the frontend's npm dependencies (`frontend/`).
 - Release workflows hardened (least-privilege job permissions, no expressions in shell scripts, no persisted checkout credentials, no dependency caches); scheduled workflows run on Australia/Brisbane time. Relicensed from MIT to the Apache License 2.0; NOTICE retains the MIT notice for earlier releases.
 - Workflow layout tidied after the release hardening (no behaviour change): blank-line layout restored in `ci.yml`, `copilot-setup-steps.yml`, `release.yml`.
 - Tinkerologie-Bot governance report updated to v1.4.3: an older run can no longer post a stale report after a newer run passed. Workflow formatting tidied.
