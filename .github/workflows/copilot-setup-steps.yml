@@ -7,7 +7,7 @@
 # - https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent/customize-the-agent-environment
 # - https://github.blog/changelog/2025-07-30-copilot-coding-agent-custom-setup-steps-are-more-reliable-and-easier-to-debug/
 
-name: "Copilot Setup Steps"
+name: Copilot Setup Steps
 
 on:
   workflow_dispatch:
@@ -28,6 +28,7 @@ permissions:
 
 jobs:
   copilot-setup-steps:
+    name: Copilot Setup Steps
     runs-on: ubuntu-latest
 
     steps:
@@ -37,14 +38,14 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.14"
+          python-version: '3.14'
 
       - name: Install uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
-          version: "0.9.3"
+          version: 0.9.3
           enable-cache: true
-          cache-dependency-glob: "**/requirements*.txt"
+          cache-dependency-glob: '**/requirements*.txt'
 
       - name: Get Home Assistant version
         id: ha_version
