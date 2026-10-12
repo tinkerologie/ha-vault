@@ -8,7 +8,7 @@ The changelog uses date sections in `YYYY.MM.DD` format.
 
 ### Changed
 
-- Pull requests get path labels and at most one type label, `bug` or `enhancement`, from the shared tinkerologie PR labeler. Dependabot pull requests whose largest update is a patch or minor version merge automatically once every check has passed (a Codecov check that is still pending is not waited for; a Codecov failure blocks); majors stay for review.
+- Pull requests get path labels and at most one type label, `bug` or `enhancement`, from the shared tinkerologie PR labeler. Dependabot pull requests whose largest update is a patch or minor version merge automatically once the checks on their head commit have finished without a failure (a Codecov check that is still pending is not waited for; a Codecov failure blocks); majors stay for review.
 - Dependabot also updates the frontend's npm dependencies (`frontend/`).
 - Release workflows hardened (least-privilege job permissions, no expressions in shell scripts, no persisted checkout credentials, no dependency caches); scheduled workflows run on Australia/Brisbane time. Relicensed from MIT to the Apache License 2.0; NOTICE retains the MIT notice for earlier releases.
 - Workflow layout tidied after the release hardening (no behaviour change): blank-line layout restored in `ci.yml`, `copilot-setup-steps.yml`, `release.yml`.
