@@ -1,9 +1,12 @@
 # Vault Backup Integration for Home Assistant
 
-[![GitHub Release][releases-shield]][releases]
-[![GitHub Activity][commits-shield]][commits]
-[![License][license-shield]](LICENSE)
-[![hacs][hacsbadge]][hacs]
+<!-- BADGES:START -->
+[![Marketplace and HACS](https://img.shields.io/badge/Marketplace%20%7C%20HACS-Default-orange.svg)](https://www.hacs.xyz/docs/marketplace/)
+[![GitHub Last Commit](https://img.shields.io/github/last-commit/tinkerologie/ha-vault)](https://github.com/tinkerologie/ha-vault/commits/main)
+[![GitHub Release](https://img.shields.io/github/v/release/tinkerologie/ha-vault)](https://github.com/tinkerologie/ha-vault/releases)
+[![codecov](https://codecov.io/gh/tinkerologie/ha-vault/graph/badge.svg)](https://codecov.io/gh/tinkerologie/ha-vault)
+[![License](https://img.shields.io/github/license/tinkerologie/ha-vault)](./LICENSE)
+<!-- BADGES:END -->
 
 **Develop in the cloud:** Want to contribute or customize this integration? Open it directly in GitHub Codespaces - no local setup required.
 
