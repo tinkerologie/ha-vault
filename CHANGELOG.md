@@ -6,6 +6,8 @@ The changelog uses date sections in `YYYY.MM.DD` format.
 
 ## [Unreleased]
 
+## [2026.11.0] - 2026-11-05
+
 ### Added
 
 - Releases ship the integration as `vault.zip`, so HACS and the Home Assistant Marketplace install the release asset and show how often the latest release was downloaded. `hacs.json` sets `zip_release` and `filename`. `script/build_release_zip.py` packages the files Git tracks under `custom_components/vault/` at the zip root, reproducibly, checks that `manifest.json` matches the tag and that the files the integration needs are present, and writes `SHA256SUMS`. The release workflow builds the zip, attests its build provenance, uploads it with `SHA256SUMS` and `CHANGELOG.md` to a draft release, then publishes and verifies the release. Pull requests build the zip twice and check the bytes match. The README explains how to install from the zip and verify it. [#92](https://github.com/tinkerologie/ha-vault/issues/92)
