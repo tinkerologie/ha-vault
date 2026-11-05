@@ -1,44 +1,97 @@
-import { LitElement, type PropertyValues } from "lit";
-import { type CardConfig } from "./config";
+import { LitElement, html, nothing, type PropertyValues, type TemplateResult } from "lit";
+import type { CardConfig, GridOptions } from "./config";
 import { dashboardCardStyles } from "./dashboard-cards-styles";
+import { loadEntityMap } from "./entity-map";
+import { fireEvent, type HomeAssistant } from "./ha-types";
 import {
-  type DeviceRegistryEntry,
-  type HassEntity,
-  type HomeAssistant,
-} from "./ha-types";
+  iconTemplate,
+  mdiAlertCircleOutline,
+  mdiCheckCircleOutline,
+  mdiCloseCircleOutline,
+  mdiHelpCircleOutline,
+  mdiMinusCircleOutline,
+  mdiProgressClock,
+} from "./icons";
+import { localize, formatDateTime, formatRelative, languageOf, type Placeholders } from "./localize/localize";
+import type { TranslationKey } from "./localize/en";
+import { buildModel, onlyRestoring, selectEntry, trackedEntityIds, type EntryMap, type Job, type Level, type VaultModel } from "./model";
+
+interface FormSchema {
+  name: string;
+  selector: Record<string, unknown>;
+}
+
+const LEVEL_ICONS: Record<Level, string> = {
+  failed: mdiCloseCircleOutline,
+  warning: mdiAlertCircleOutline,
+  unknown: mdiHelpCircleOutline,
+  running: mdiProgressClock,
+  disabled: mdiMinusCircleOutline,
+  ok: mdiCheckCircleOutline,
+  idle: mdiMinusCircleOutline,
+};
+
+const RELATIVE_TIME_REFRESH_MS = 60_000;
 
 export abstract class BaseVaultCard extends LitElement {
   static override styles = dashboardCardStyles;
-  static editorTag = "";
-
-  static async getConfigElement(this: {
-    editorTag: string;
-  }): Promise<HTMLElement> {
-    return document.createElement(this.editorTag);
-  }
 
   static override properties = {
     hass: { attribute: false },
     config: { attribute: false },
+    _entries: { state: true },
+    _error: { state: true },
   };
 
   declare hass?: HomeAssistant;
   declare config: CardConfig;
+  declare _entries?: EntryMap[];
+  declare _error?: string;
+
+  /** The model for the selected server; undefined while loading or when there's none. */
+  protected model?: VaultModel;
+  private _tracked = new Set<string>();
+  private _loadingFor?: unknown;
+  private _timer?: number;
+  private _refetchTimer?: number;
 
   constructor() {
     super();
     this.config = { type: "" };
   }
 
-  override willUpdate(changedProperties: PropertyValues<this>): void {
-    super.willUpdate(changedProperties);
-    if (changedProperties.has("config")) {
-      if (this.config.embedded) {
-        this.setAttribute("embedded", "");
-      } else {
-        this.removeAttribute("embedded");
-      }
-    }
+  // -------------------------------------------------------------------------
+  // Card API used by Home Assistant
+  // -------------------------------------------------------------------------
+
+  /** Extra fields for the visual editor; most cards only pick a server and a title. */
+  protected static extraFormSchema(): FormSchema[] {
+    return [];
+  }
+
+  static getConfigForm() {
+    const schema: FormSchema[] = [
+      { name: "server", selector: { device: { filter: { integration: "vault" } } } },
+      { name: "title", selector: { text: {} } },
+      ...this.extraFormSchema(),
+    ];
+    const labels: Record<string, TranslationKey> = {
+      server: "editor.server",
+      title: "editor.title",
+      max_items: "editor.max_items",
+    };
+    return {
+      schema,
+      computeLabel: (field: { name: string }) =>
+        labels[field.name] ? localize(undefined, labels[field.name] as TranslationKey) : undefined,
+      computeHelper: (field: { name: string }) =>
+        field.name === "server" ? localize(undefined, "editor.server_helper") : undefined,
+    };
+  }
+
+  /** A new card works without any options: it shows the first Vault server. */
+  static getStubConfig(): Record<string, unknown> {
+    return {};
   }
 
   setConfig(config: CardConfig): void {
@@ -46,236 +99,235 @@ export abstract class BaseVaultCard extends LitElement {
       throw new Error("Invalid card configuration");
     }
     this.config = { ...config };
-    if (this.config.embedded) {
-      this.setAttribute("embedded", "");
-    } else {
-      this.removeAttribute("embedded");
-    }
   }
 
+  /** Rough height in 50 px units, for masonry views. */
   getCardSize(): number {
-    return 3;
+    return 2;
   }
 
-  getGridOptions(): { columns: number; rows: number; min_columns?: number; min_rows?: number } {
-    return { columns: 3, rows: 2, min_columns: 2, min_rows: 2 };
+  getGridOptions(): GridOptions {
+    return { columns: 6, rows: "auto", min_columns: 3 };
   }
 
-  /** Get all Vault devices registered in Home Assistant */
-  protected getVaultDevices(): DeviceRegistryEntry[] {
-    if (!this.hass?.devices) return [];
-    return Object.values(this.hass.devices).filter((device) =>
-      device.identifiers?.some(([domain]) => domain === "vault")
-    );
+  // -------------------------------------------------------------------------
+  // Lifecycle
+  // -------------------------------------------------------------------------
+
+  override connectedCallback(): void {
+    super.connectedCallback();
+    // Relative times ("in 3 hours") go stale without state changes.
+    this._timer = window.setInterval(() => this.requestUpdate(), RELATIVE_TIME_REFRESH_MS);
   }
 
-  /** Resolve active Vault device based on card config or default */
-  protected getActiveDevice(): DeviceRegistryEntry | undefined {
-    const devices = this.getVaultDevices();
-    if (devices.length === 0) return undefined;
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    window.clearInterval(this._timer);
+    window.clearTimeout(this._refetchTimer);
+    this._refetchTimer = undefined;
+  }
 
-    if (this.config.server) {
-      const match = devices.find(
-        (d) =>
-          d.id === this.config.server ||
-          d.name?.toLowerCase() === this.config.server?.toLowerCase() ||
-          d.name_by_user?.toLowerCase() === this.config.server?.toLowerCase()
+  /**
+   * Re-render only for changes the card shows: its config, the server's
+   * entity map, the user's language and formats, or one of the server's
+   * entities. Other state changes in Home Assistant don't touch the card.
+   */
+  protected override shouldUpdate(changed: PropertyValues<this>): boolean {
+    if (!changed.has("hass") || changed.size > 1) return true;
+    const old = changed.get("hass") as HomeAssistant | undefined;
+    const hass = this.hass;
+    if (!old || !hass) return true;
+    if (old.locale !== hass.locale || old.language !== hass.language || old.devices !== hass.devices) return true;
+    if (old.entities !== hass.entities) return true;
+    for (const entityId of this._tracked) {
+      if (old.states[entityId] !== hass.states[entityId]) return true;
+    }
+    return false;
+  }
+
+  protected override willUpdate(changed: PropertyValues<this>): void {
+    super.willUpdate(changed);
+    this.toggleAttribute("embedded", Boolean(this.config.embedded));
+    const stale = this._entries !== undefined && this._entries.length === 0 && !this._refetchTimer;
+    if (stale) {
+      // No Vault server yet: check again shortly, in case an entry is still setting up.
+      this._refetchTimer = window.setTimeout(() => {
+        this._refetchTimer = undefined;
+        this._loadingFor = undefined;
+        this.requestUpdate();
+      }, 30_000);
+    }
+    if (this.hass && this._loadingFor !== this.hass.entities) {
+      this._loadingFor = this.hass.entities;
+      loadEntityMap(this.hass).then(
+        (entries) => {
+          this._entries = entries;
+          this._error = undefined;
+        },
+        (err: unknown) => {
+          this._loadingFor = undefined;
+          this._error = err instanceof Error ? err.message : String((err as { message?: string })?.message ?? err);
+        }
       );
-      if (match) return match;
     }
-    return devices[0];
+    const entry = this._entries ? this.selectedEntry(this._entries) : undefined;
+    this.model = entry && this.hass ? buildModel(this.hass.states, entry) : undefined;
+    this._tracked = new Set(entry ? trackedEntityIds(entry) : []);
   }
 
-  /** Find an entity by translation key or entity_id suffix */
-  protected getEntity(
-    keyOrSuffix: string,
-    domain = "sensor"
-  ): HassEntity | undefined {
-    if (!this.hass?.states) return undefined;
-    const device = this.getActiveDevice();
-    const deviceId = device?.id;
-
-    // Search registry first if device is resolved
-    if (deviceId && this.hass.entities) {
-      const regMatches = Object.values(this.hass.entities).filter(
-        (entry) =>
-          entry.device_id === deviceId &&
-          entry.entity_id.startsWith(`${domain}.`) &&
-          (entry.translation_key === keyOrSuffix ||
-            entry.entity_id.endsWith(`_${keyOrSuffix}`) ||
-            entry.entity_id === `${domain}.${keyOrSuffix}`)
-      );
-      if (regMatches.length > 0 && regMatches[0]?.entity_id) {
-        const entity = this.hass.states[regMatches[0].entity_id];
-        if (entity) return entity;
-      }
+  private selectedEntry(entries: EntryMap[]): EntryMap | undefined {
+    const deviceNames: Record<string, string[]> = {};
+    for (const device of Object.values(this.hass?.devices ?? {})) {
+      deviceNames[device.id] = [device.name, device.name_by_user].filter((n): n is string => Boolean(n));
     }
-
-    // First pass: exact entity ID matches
-    for (const [entityId, entity] of Object.entries(this.hass.states)) {
-      if (!entityId.startsWith(`${domain}.`)) continue;
-      if (this.hass.entities) {
-        const reg = this.hass.entities[entityId];
-        if (reg) {
-          if (deviceId && reg.device_id && reg.device_id !== deviceId) continue;
-          if (reg.platform && reg.platform !== "vault") continue;
-        }
-      }
-      if (
-        entityId === `${domain}.vault_${keyOrSuffix}` ||
-        entityId === `${domain}.${keyOrSuffix}` ||
-        entityId === `${domain}.vault_backup_${keyOrSuffix}`
-      ) {
-        return entity;
-      }
-    }
-
-    // Second pass: exact suffix matches
-    for (const [entityId, entity] of Object.entries(this.hass.states)) {
-      if (!entityId.startsWith(`${domain}.`)) continue;
-      if (this.hass.entities) {
-        const reg = this.hass.entities[entityId];
-        if (reg) {
-          if (deviceId && reg.device_id && reg.device_id !== deviceId) continue;
-          if (reg.platform && reg.platform !== "vault") continue;
-        }
-      }
-      if (entityId.endsWith(`_${keyOrSuffix}`)) {
-        return entity;
-      }
-    }
-    return undefined;
+    return selectEntry(entries, this.config.server, deviceNames);
   }
 
-  /** Find all entities matching a pattern/prefix scoped to active Vault device */
-  protected getEntities(
-    keyPrefix: string,
-    domain = "sensor"
-  ): HassEntity[] {
-    if (!this.hass?.states) return [];
-    const results: HassEntity[] = [];
-    const device = this.getActiveDevice();
-    const deviceId = device?.id;
-
-    for (const [entityId, entity] of Object.entries(this.hass.states)) {
-      if (!entityId.startsWith(`${domain}.`)) continue;
-      if (this.hass.entities) {
-        const reg = this.hass.entities[entityId];
-        if (reg) {
-          if (reg.platform && reg.platform !== "vault") continue;
-          if (deviceId && reg.device_id && reg.device_id !== deviceId) continue;
-        } else if (!entityId.startsWith(`${domain}.vault_`) && !entityId.includes("vault")) {
-          continue;
-        }
-      } else if (!entityId.startsWith(`${domain}.vault_`) && !entityId.includes("vault")) {
-        continue;
-      }
-      const objectId = entityId.slice(domain.length + 1);
-      const matchesKey =
-        objectId === keyPrefix ||
-        objectId.startsWith(`${keyPrefix}_`) ||
-        objectId.startsWith(`vault_${keyPrefix}_`) ||
-        objectId.endsWith(`_${keyPrefix}`) ||
-        objectId.includes(`_${keyPrefix}_`);
-      if (matchesKey) {
-        results.push(entity);
-      }
+  protected override render(): TemplateResult {
+    if (!this.hass) return html``;
+    if (!this.model) {
+      const message = this._error
+        ? this.t("common.load_error", { error: this._error })
+        : this._entries
+          ? this.t("common.not_set_up")
+          : this.t("common.loading");
+      return html`<ha-card>
+        ${this.renderHeader()}
+        <div class=${this._error ? "alert" : "empty"} role=${this._error ? "alert" : nothing}>${message}</div>
+      </ha-card>`;
     }
-    return results;
+    return this.renderCard(this.model);
   }
 
-  /** Convert data size entity state into bytes, taking unit_of_measurement into account */
-  protected parseDataSizeBytes(state: string | number | undefined | null, unit?: string): number {
-    if (state === undefined || state === null || state === "unavailable" || state === "unknown") return 0;
-    const n = Number(state);
-    if (isNaN(n) || n <= 0) return 0;
-    const u = (unit || "").toUpperCase();
-    if (u === "TB") return n * 1e12;
-    if (u === "GB") return n * 1e9;
-    if (u === "MB") return n * 1e6;
-    if (u === "KB") return n * 1e3;
-    return n;
+  protected abstract renderCard(model: VaultModel): TemplateResult;
+
+  /** The translation key of the card's default title. */
+  protected abstract titleKey: TranslationKey;
+
+  /** The icon next to the card's title. */
+  protected abstract titleIcon: string;
+
+  // -------------------------------------------------------------------------
+  // Helpers for cards
+  // -------------------------------------------------------------------------
+
+  t(key: TranslationKey | string, placeholders?: Placeholders): string {
+    return localize(this.hass, key, placeholders);
   }
 
-  /** Format bytes to human readable string (MB/GB/TB) */
-  protected formatBytes(bytes: number | string | undefined | null, unit?: string): string {
-    if (bytes === undefined || bytes === null || bytes === "" || bytes === "unavailable" || bytes === "unknown") return "--";
-    const n = Number(bytes);
-    if (isNaN(n) || n <= 0) return "--";
+  /**
+   * The card title as a heading: h2 on its own, h3 inside the summary card.
+   * A user title replaces the default one.
+   */
+  protected renderHeader(extra: TemplateResult | typeof nothing = nothing): TemplateResult {
+    const text = this.config.title || this.t(this.titleKey);
+    const content = html`${iconTemplate(this.titleIcon, 20, "icon title-icon")}<span class="title-text">${text}</span>`;
+    return html`<div class="header">
+      ${this.config.embedded ? html`<h3 class="title">${content}</h3>` : html`<h2 class="title">${content}</h2>`}
+      ${extra}
+    </div>`;
+  }
 
-    if (unit && unit !== "B" && unit !== "bytes") {
-      const u = unit.toUpperCase();
-      if (["TB", "GB", "MB", "KB"].includes(u)) {
-        return `${n < 10 ? n.toFixed(1) : Math.round(n)} ${u}`;
-      }
+  protected levelIcon(level: Level, size = 20): TemplateResult {
+    return iconTemplate(LEVEL_ICONS[level], size);
+  }
+
+  protected levelBadge(level: Level, label: string): TemplateResult {
+    return html`<span class="badge lvl-${level}">${this.levelIcon(level, 14)}${label}</span>`;
+  }
+
+  /** Open Home Assistant's more-info dialog, like built-in cards do on tap. */
+  protected moreInfo(entityId: string | undefined): void {
+    if (entityId) fireEvent(this, "hass-more-info", { entityId });
+  }
+
+  /**
+   * Content that opens an entity's more-info dialog: a real button for
+   * keyboard and screen reader users, styled like plain text.
+   */
+  entityLink(entityId: string | undefined, content: TemplateResult | string, className = ""): TemplateResult {
+    if (!entityId || !this.hass?.states[entityId]) return html`<span class=${className}>${content}</span>`;
+    return html`<button type="button" class="link ${className}" @click=${() => this.moreInfo(entityId)}>
+      ${content}
+    </button>`;
+  }
+
+  /** An entity's state formatted by Home Assistant: translated, with unit and the user's number format. */
+  protected formatState(entityId: string | undefined): string {
+    const stateObj = entityId ? this.hass?.states[entityId] : undefined;
+    if (!stateObj) return this.t("common.unavailable");
+    if (this.hass?.formatEntityState) return this.hass.formatEntityState(stateObj);
+    const unit = stateObj.attributes.unit_of_measurement;
+    return unit ? `${stateObj.state} ${String(unit)}` : stateObj.state;
+  }
+
+  protected relative(time: number): string {
+    return formatRelative(this.hass, time);
+  }
+
+  protected dateTime(time: number): string {
+    return formatDateTime(this.hass, time);
+  }
+
+  /** A time as "in 3 hours" with the exact date and time for hover and screen readers. */
+  protected timeTemplate(time: number): TemplateResult {
+    return html`<time datetime=${new Date(time).toISOString()} title=${this.dateTime(time)}>${this.relative(time)}</time>`;
+  }
+
+  /** A translated sentence with a relative time slotted in where the language puts `{time}`. */
+  protected withTime(key: TranslationKey, time: number): TemplateResult {
+    const marker = "\u0000";
+    const [before = "", after = ""] = this.t(key, { time: marker }).split(marker);
+    return html`${before}${this.timeTemplate(time)}${after}`;
+  }
+
+  /** Size, duration and item count of a run, formatted by Home Assistant. */
+  protected runDetails(job: Job): string {
+    const parts: string[] = [];
+    const states = this.hass?.states ?? {};
+    for (const role of ["job_last_size", "job_last_duration"]) {
+      const id = job.entities[role];
+      if (id && states[id] && !["unknown", "unavailable"].includes(states[id].state)) parts.push(this.formatState(id));
     }
-
-    if (n >= 1e12) return `${(n / 1e12).toFixed(1)} TB`;
-    if (n >= 1e9) return `${(n / 1e9).toFixed(1)} GB`;
-    if (n >= 1e6) return `${(n / 1e6).toFixed(1)} MB`;
-    if (n >= 1e3) return `${(n / 1e3).toFixed(1)} KB`;
-    return `${Math.round(n)} B`;
+    if (job.itemsDone !== null) parts.push(this.t("common.items", { count: job.itemsDone }));
+    return parts.join(this.t("common.separator"));
   }
 
-  /** Format duration in seconds to human readable string */
-  protected formatDuration(seconds: number | string | undefined | null): string {
-    if (seconds === undefined || seconds === null || seconds === "" || seconds === "unavailable" || seconds === "unknown") return "--";
-    if (typeof seconds === "string" && /[a-z]/i.test(seconds)) {
-      return seconds;
-    }
-    const s = Number(seconds);
-    if (isNaN(s) || s < 0) return "--";
-    if (s < 60) return `${Math.round(s)}s`;
-    const m = Math.floor(s / 60);
-    const remS = Math.round(s % 60);
-    if (m < 60) return remS ? `${m}m ${remS}s` : `${m}m`;
-    const h = Math.floor(m / 60);
-    const remM = m % 60;
-    return remM ? `${h}h ${remM}m` : `${h}h`;
+  protected get language(): string {
+    return languageOf(this.hass);
   }
 
-  /** Format ISO date string or timestamp to relative or localized time */
-  protected formatTimeAgo(isoOrTimestamp: string | number | undefined | null): string {
-    if (!isoOrTimestamp) return "--";
-    try {
-      const date = new Date(isoOrTimestamp);
-      const now = new Date();
-      const diffMs = now.getTime() - date.getTime();
-      const isFuture = diffMs < 0;
-      const absDiffSec = Math.floor(Math.abs(diffMs) / 1000);
-
-      if (absDiffSec < 60) return isFuture ? "in < 1m" : "just now";
-      if (absDiffSec < 3600) {
-        const m = Math.floor(absDiffSec / 60);
-        return isFuture ? `in ${m}m` : `${m}m ago`;
-      }
-      if (absDiffSec < 86400) {
-        const h = Math.floor(absDiffSec / 3600);
-        const m = Math.floor((absDiffSec % 3600) / 60);
-        if (isFuture) {
-          return m > 0 ? `in ${h}h ${m}m` : `in ${h}h`;
-        }
-        return m > 0 ? `${h}h ${m}m ago` : `${h}h ago`;
-      }
-      const d = Math.floor(absDiffSec / 86400);
-      return isFuture ? `in ${d}d` : `${d}d ago`;
-    } catch {
-      return String(isoOrTimestamp);
+  /** The label for a server status level. */
+  protected serverLabel(model: VaultModel): string {
+    if (model.online === false) return this.t("server.offline");
+    switch (model.level) {
+      case "failed":
+        return this.t("server.failed");
+      case "warning":
+        return this.t("server.warning");
+      case "running":
+        return onlyRestoring(model) ? this.t("server.restoring") : this.t("server.running");
+      case "unknown":
+        return this.t("server.unknown");
+      default:
+        return this.t("server.ok");
     }
   }
 
-  /** Call a Home Assistant service/action safely */
-  protected async callAction(
-    domain: string,
-    action: string,
-    data: Record<string, unknown> = {}
-  ): Promise<void> {
-    if (!this.hass) return;
-    try {
-      await this.hass.callService(domain, action, data);
-    } catch (err) {
-      console.error(`Failed to call ${domain}.${action}:`, err);
-      throw err;
+  /** A job's status label: Home Assistant's translated state where there is one. */
+  protected jobLabel(job: { level: Level; entities: Record<string, string> }, level: Level = job.level): string {
+    job = { ...job, level };
+    if (job.level === "unknown") return this.t("level.unknown");
+    if (job.level === "disabled") return this.t("job.disabled");
+    if (job.level === "warning" || job.level === "failed" || job.level === "running" || job.level === "ok" || job.level === "idle") {
+      const status = job.entities.job_status;
+      const stateObj = status ? this.hass?.states[status] : undefined;
+      const describesThisLevel = level === "running" || !["running", "restoring"].includes(stateObj?.state ?? "");
+      if (stateObj && describesThisLevel && this.hass?.formatEntityState && !["unknown", "unavailable"].includes(stateObj.state)) {
+        if (job.level === "warning" && stateObj.state === "completed") return this.t("level.warning");
+        return this.hass.formatEntityState(stateObj);
+      }
     }
+    return this.t(job.level === "ok" ? "job.ok" : `level.${job.level}`);
   }
 }

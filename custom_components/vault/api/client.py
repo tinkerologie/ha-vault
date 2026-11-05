@@ -14,8 +14,10 @@ from .models import (
     Anomaly,
     AuthStatus,
     BackupJob,
+    Discovery,
     EncryptionStatus,
     HealthStatus,
+    HealthSummary,
     JobDetail,
     JobRun,
     RestorePoint,
@@ -89,6 +91,10 @@ class VaultApiClient:
     async def async_get_health_summary(self) -> dict[str, Any]:
         """GET /api/v1/health/summary — aggregated dashboard health metrics."""
         return await self._request("GET", f"{API_BASE}/health/summary")  # type: ignore[return-value]
+
+    async def async_get_coverage_summary(self) -> HealthSummary:
+        """GET /api/v1/health/summary — parsed for item coverage."""
+        return HealthSummary.model_validate(await self._request("GET", f"{API_BASE}/health/summary"))
 
     async def async_ping(self) -> bool:
         """GET /api/v1/ping — fast liveness check.
@@ -457,26 +463,46 @@ class VaultApiClient:
         endpoint = self._with_query(f"{API_BASE}/path-exists", {"path": path})
         return await self._request("GET", endpoint)  # type: ignore[return-value]
 
-    async def async_get_containers(self) -> list[dict[str, Any]]:
-        """GET /api/v1/containers — discover Docker containers."""
-        data = await self._request("GET", f"{API_BASE}/containers")
+    @staticmethod
+    def _discovery_entries(data: Any) -> list[dict[str, Any]]:
+        """Return the item dicts of a discovery response.
+
+        The daemon wraps items as ``{"items": [...], "available": bool}``;
+        a bare list is accepted too.
+        """
+        if isinstance(data, dict):
+            data = data.get("items")
         if isinstance(data, list):
             return [entry for entry in data if isinstance(entry, dict)]
         return []
+
+    async def async_get_containers(self) -> list[dict[str, Any]]:
+        """GET /api/v1/containers — discover Docker containers."""
+        return self._discovery_entries(await self._request("GET", f"{API_BASE}/containers"))
 
     async def async_get_vms(self) -> list[dict[str, Any]]:
         """GET /api/v1/vms — discover VMs."""
-        data = await self._request("GET", f"{API_BASE}/vms")
-        if isinstance(data, list):
-            return [entry for entry in data if isinstance(entry, dict)]
-        return []
+        return self._discovery_entries(await self._request("GET", f"{API_BASE}/vms"))
 
     async def async_get_folders(self) -> list[dict[str, Any]]:
         """GET /api/v1/folders — discover folder presets."""
-        data = await self._request("GET", f"{API_BASE}/folders")
-        if isinstance(data, list):
-            return [entry for entry in data if isinstance(entry, dict)]
-        return []
+        return self._discovery_entries(await self._request("GET", f"{API_BASE}/folders"))
+
+    async def async_discover(self, kind: str) -> Discovery:
+        """GET /api/v1/{containers,vms,folders} with the availability flag.
+
+        ``available`` is false when the daemon couldn't list the items (for
+        example Docker or libvirt is down), so callers can tell "none" from
+        "unknown".
+        """
+        if kind not in {"containers", "vms", "folders"}:
+            raise ValueError(f"Unknown discovery kind: {kind}")
+        data = await self._request("GET", f"{API_BASE}/{kind}")
+        if isinstance(data, dict):
+            return Discovery.model_validate(
+                {"items": self._discovery_entries(data), "available": bool(data.get("available", True))}
+            )
+        return Discovery.model_validate({"items": self._discovery_entries(data), "available": isinstance(data, list)})
 
     async def async_get_plugins(self) -> list[dict[str, Any]]:
         """GET /api/v1/plugins — discover installed plugins."""

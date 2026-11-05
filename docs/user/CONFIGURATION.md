@@ -163,6 +163,40 @@ Adjust based on your needs:
 - Regular updates: 5 minutes
 - Slow-changing values: 15-30 minutes
 
+## Dashboard cards
+
+The integration registers its dashboard cards automatically. Add them from **Edit dashboard → Add card**, and search for "Vault". Every card shows a live preview in the card picker, and the editor has two options:
+
+- **Vault server**: the Vault device to show. Leave it empty to use the first Vault server. Older configurations that name the server by its device name keep working.
+- **Title**: replaces the card's default title.
+
+| Card | Shows |
+| ---- | ----- |
+| `custom:vault-dashboard-card` | A compact summary: one status, what needs attention, open anomalies, running backups or restores, and the last and next backup. Spans the full width of a section. |
+| `custom:vault-health-card` | The server's status and the reasons behind it. A failed job is never shown as healthy, and unavailable data shows as unknown. |
+| `custom:vault-protected-card` | Items in a restore point out of every container, VM and folder Vault can see, including items no job covers. |
+| `custom:vault-next-run-card` | When the next scheduled backup starts, or which backup or restore is running. |
+| `custom:vault-last-backup-card` | The latest backup's outcome, size and duration. |
+| `custom:vault-progress-card` | Progress of running backups and restores, labelled as either. |
+| `custom:vault-jobs-card` | Each job with its status, last and next run, and a **Run backup** action. |
+| `custom:vault-activity-card` | Each job's latest backup, newest first, with its real outcome. |
+| `custom:vault-storage-card` | The server's storage destinations with health and capacity. |
+| `custom:vault-anomalies-card` | Open anomalies. Option `max_items` (default 5) limits the list. Home Assistant suggests this card for a Vault "Open anomalies" sensor. |
+| `custom:vault-rules-card` | The 3-2-1 rule checked against destinations that enabled jobs have backed up to. It says "Likely met" at best: destinations meeting the rule don't prove every item has three copies, and Vault doesn't know where a destination is, so any network destination counts as remote. |
+
+Behaviour worth knowing:
+
+- **Run backup always asks first**, using Home Assistant's confirmation dialog. A backup can stop containers or VMs, depending on the job's settings, and the card can't tell which jobs do. If starting the backup fails, the card says so.
+- **Open in Vault** opens the Vault UI on your Unraid server in a new tab.
+- Selecting a job, value or attention item opens Home Assistant's more-info dialog for the entity behind it.
+- Cards size themselves in sections views (`rows: auto`), so lists never clip. They use your theme's colours in light and dark mode, your language, and your number, date and time settings.
+
+```yaml
+type: custom:vault-jobs-card
+server: 0123456789abcdef0123456789abcdef  # optional: a Vault device ID
+title: Backups                           # optional
+```
+
 ## Diagnostic Data
 
 The integration provides diagnostic data for troubleshooting:

@@ -13,9 +13,11 @@
 #   - respx (httpx mocking)
 #
 # Install with: uv pip install -r requirements_test.txt
-
-# Testing utilities for Home Assistant custom components
-# Provides additional fixtures and utilities specifically for custom component testing
-pytest-homeassistant-custom-component==0.13.367
-# syrupy is pinned exactly by pytest-homeassistant-custom-component; do not pin it
-# here as well, or Dependabot bumps it past that pin and the install fails.
+#
+# The test plugin, Home Assistant's own pytest-homeassistant, is not listed here:
+# it must match the installed Home Assistant exactly, and the release the tests
+# run on (2026.11.0) is not on PyPI. script/setup/bootstrap and script/test
+# install it together with Home Assistant, using the version pinned in
+# script/.lib/ha-test-harness.sh. It replaces pytest-homeassistant-custom-component,
+# which has no release for Home Assistant 2026.11. It also pins syrupy, so don't
+# pin syrupy here.

@@ -43,17 +43,18 @@ log_date_format = "%Y-%m-%d %H:%M:%S"
 asyncio_debug = true
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-addopts = "-ra -q --strict-markers"
+# respx's pytest plugin imports httpx before Home Assistant can alias it to httpx2,
+# which stops pytest-homeassistant from loading.
+addopts = "-ra -q --strict-markers -p no:respx"
 markers = [
     "unit: Unit tests (fast, no external dependencies)",
     "integration: Integration tests (may use coordinator/time service)",
 ]
 filterwarnings = [
-    # Treat warnings as errors to catch issues early
-    "error",
-    # Ignore specific warnings from third-party libraries as needed
-    # "ignore:.*custom_components.* is using deprecated.*:DeprecationWarning",
-    "ignore:Setting custom ClientSession.*:DeprecationWarning",
+    # Fail on deprecations raised from the integration itself; Home Assistant and
+    # its dependencies raise their own, which we can't fix here.
+    'error::DeprecationWarning:custom_components\.vault(\.|$)',
+    'error::PendingDeprecationWarning:custom_components\.vault(\.|$)',
 ]
 
 [tool.coverage.run]

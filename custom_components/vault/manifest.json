@@ -6,6 +6,9 @@
     "http",
     "lovelace"
   ],
+  "categories": [
+    "computers_network"
+  ],
   "codeowners": [
     "@ruaan-deysel"
   ],

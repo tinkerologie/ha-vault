@@ -4,25 +4,43 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-from datetime import timedelta
-from typing import TYPE_CHECKING
+from datetime import datetime, timedelta
+from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.exceptions import ConfigEntryAuthFailed
-from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .api import VaultApiClient, VaultApiError, VaultAuthenticationError, VaultConnectionError, VaultWebSocketClient
-from .api.models import Anomaly, StorageDestination, VaultApiData
-from .const import ACTIVE_UPDATE_INTERVAL_SECONDS, DEFAULT_UPDATE_INTERVAL_SECONDS, DOMAIN, LOGGER
+from .api.models import Coverage, Discovery, HealthSummary, Settings, VaultApiData
+from .const import (
+    ACTIVE_UPDATE_INTERVAL_SECONDS,
+    COVERAGE_UPDATE_INTERVAL_SECONDS,
+    DEFAULT_UPDATE_INTERVAL_SECONDS,
+    LOGGER,
+)
+from .runs import HISTORY_LIMIT
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
 
 type VaultConfigEntry = ConfigEntry[VaultData]
+
+
+@dataclass
+class TrackedRun:
+    """The backup or restore Vault is running, as seen through WebSocket events."""
+
+    job_id: int
+    run_id: int | None = None
+    processed: int = 0
+    """Items finished, successfully or not."""
+    total: int = 0
+    finished: bool = False
 
 
 @dataclass
@@ -34,6 +52,66 @@ class VaultData:
     websocket: VaultWebSocketClient
     progress: dict[int, int] = field(default_factory=dict)
     """Live backup progress per job id, fed by WebSocket events."""
+    current_run: TrackedRun | None = None
+    """The job Vault is backing up and its item counts, from WebSocket events."""
+
+
+def parse_next_runs(raw: dict[str, Any]) -> dict[int, datetime]:
+    """Parse the daemon's next-run map into aware datetimes keyed by job id.
+
+    The daemon formats times as ``YYYY-MM-DD HH:MM:SS`` in its own local
+    time without an offset. Vault runs on the Unraid host, which normally
+    shares Home Assistant's time zone, so a naive time is read in Home
+    Assistant's time zone. A time that carries an offset is used as is.
+    """
+    next_runs: dict[int, datetime] = {}
+    for job_id, value in raw.items():
+        if not isinstance(value, str) or not str(job_id).isdigit():
+            continue
+        parsed = dt_util.parse_datetime(value.replace(" ", "T", 1))
+        if parsed is None:
+            continue
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=dt_util.get_default_time_zone())
+        next_runs[int(job_id)] = parsed
+    return next_runs
+
+
+def compute_coverage(summary: HealthSummary, settings: Settings, discovery: dict[str, Discovery] | None) -> Coverage:
+    """Count protected and unprotected items like Vault's own dashboard.
+
+    Items are the discovered containers, VMs, folders and flash presets
+    whose backup category is enabled in Vault's settings. Without discovery,
+    only the summary's counts of items in jobs are known.
+    """
+    protected_keys = set(summary.protected_keys)
+    pending_keys = set(summary.pending_keys) - protected_keys
+    if discovery is None:
+        return Coverage(protected=summary.protected_items, pending=len(pending_keys))
+
+    extra = settings.model_extra or {}
+
+    def enabled(setting: str) -> bool:
+        return str(extra.get(setting, "true")).lower() != "false"
+
+    empty = Discovery(available=True)
+    tracked: set[str] = set()
+    if enabled("container_backup_enabled"):
+        tracked.update(item.key for item in discovery.get("containers", empty).items)
+    if enabled("vm_backup_enabled"):
+        tracked.update(item.key for item in discovery.get("vms", empty).items)
+    for item in discovery.get("folders", empty).items:
+        is_flash = item.settings.get("preset") == "flash"
+        if enabled("flash_backup_enabled" if is_flash else "folder_backup_enabled"):
+            tracked.add(item.key)
+
+    unprotected = sorted(tracked - protected_keys)
+    return Coverage(
+        protected=len(tracked & protected_keys),
+        pending=len(tracked & pending_keys),
+        unprotected=len(unprotected),
+        unprotected_keys=unprotected,
+    )
 
 
 class VaultDataUpdateCoordinator(DataUpdateCoordinator[VaultApiData]):
@@ -55,8 +133,8 @@ class VaultDataUpdateCoordinator(DataUpdateCoordinator[VaultApiData]):
             update_interval=timedelta(seconds=DEFAULT_UPDATE_INTERVAL_SECONDS),
         )
         self.client = client
-        self._storage_issue_ids: set[str] = set()
-        self._anomaly_issue_ids: set[str] = set()
+        self._coverage: Coverage | None = None
+        self._coverage_fetched_at: datetime | None = None
 
     @staticmethod
     def _job_run_status_text(status: object) -> str:
@@ -67,7 +145,7 @@ class VaultDataUpdateCoordinator(DataUpdateCoordinator[VaultApiData]):
         """Fetch latest runs and restore point count for one job."""
         async with semaphore:
             try:
-                runs = await self.client.async_get_job_history(job_id, limit=1)
+                runs = await self.client.async_get_job_history(job_id, limit=HISTORY_LIMIT)
                 restore_points = await self.client.async_get_restore_points(job_id)
             except VaultAuthenticationError:
                 # Must propagate so the reauth flow is triggered.
@@ -78,59 +156,64 @@ class VaultDataUpdateCoordinator(DataUpdateCoordinator[VaultApiData]):
 
         return job_id, runs, len(restore_points)
 
-    def _update_storage_repair_issues(self, storage: list[StorageDestination]) -> None:
-        """Create or clear repair issues for unhealthy storage destinations."""
-        current_issue_ids: set[str] = set()
-        for dest in storage:
-            issue_id = f"storage_unhealthy_{dest.id}"
-            status = (dest.last_health_check_status or "").lower()
-            unhealthy = (status and status != "ok") or dest.breaker_state == "open"
-            if unhealthy:
-                current_issue_ids.add(issue_id)
-                ir.async_create_issue(
-                    self.hass,
-                    DOMAIN,
-                    issue_id,
-                    is_fixable=False,
-                    severity=ir.IssueSeverity.WARNING,
-                    translation_key="storage_unhealthy",
-                    translation_placeholders={
-                        "name": dest.name,
-                        "error": dest.last_health_check_error or dest.breaker_state or status or "unknown",
-                    },
-                )
-        stale_issue_ids = self._storage_issue_ids - current_issue_ids
-        for issue_id in stale_issue_ids:
-            ir.async_delete_issue(self.hass, DOMAIN, issue_id)
-        self._storage_issue_ids = current_issue_ids
+    async def _fetch_next_runs(self) -> dict[int, datetime]:
+        """Fetch next scheduled runs; an older daemon without the endpoint gives none."""
+        try:
+            raw = await self.client.async_get_next_runs()
+        except VaultAuthenticationError:
+            raise
+        except VaultApiError as err:
+            LOGGER.debug("Next runs unavailable: %s", err)
+            return {}
+        return parse_next_runs(raw) if isinstance(raw, dict) else {}
 
-    def _update_anomaly_repair_issues(self, anomalies: list[Anomaly], job_names: dict[int, str]) -> None:
-        """Create or clear repair issues for open anomalies (Vault alerts)."""
-        current_issue_ids: set[str] = set()
-        for anomaly in anomalies:
-            issue_id = f"anomaly_{anomaly.id}"
-            current_issue_ids.add(issue_id)
-            if anomaly.scope_kind == "job":
-                scope = job_names.get(anomaly.scope_id, f"job {anomaly.scope_id}")
-            else:
-                scope = f"{anomaly.scope_kind} {anomaly.scope_id}".strip()
-            severity = ir.IssueSeverity.ERROR if anomaly.severity == "critical" else ir.IssueSeverity.WARNING
-            ir.async_create_issue(
-                self.hass,
-                DOMAIN,
-                issue_id,
-                is_fixable=False,
-                severity=severity,
-                translation_key="anomaly",
-                translation_placeholders={
-                    "scope": scope,
-                    "summary": anomaly.summary or anomaly.metric or anomaly.detector,
-                },
+    async def _fetch_coverage(self, settings: Settings) -> Coverage | None:
+        """Return item coverage, refreshed at most every few minutes.
+
+        Coverage is optional: when the daemon can't provide it, the last known
+        value is kept and the rest of the update carries on.
+        """
+        now = dt_util.utcnow()
+        if self._coverage_fetched_at is not None and now - self._coverage_fetched_at < timedelta(
+            seconds=COVERAGE_UPDATE_INTERVAL_SECONDS
+        ):
+            return self._coverage
+        try:
+            summary = await self.client.async_get_coverage_summary()
+        except VaultAuthenticationError:
+            raise
+        except (VaultApiError, ValidationError) as err:
+            LOGGER.debug("Coverage summary unavailable: %s", err)
+            return self._coverage
+
+        discovery: dict[str, Discovery] | None = {}
+        extra = settings.model_extra or {}
+        enabled_kinds = [
+            kind
+            for kind, setting_names in (
+                ("containers", ("container_backup_enabled",)),
+                ("vms", ("vm_backup_enabled",)),
+                ("folders", ("folder_backup_enabled", "flash_backup_enabled")),
             )
-        stale_issue_ids = self._anomaly_issue_ids - current_issue_ids
-        for issue_id in stale_issue_ids:
-            ir.async_delete_issue(self.hass, DOMAIN, issue_id)
-        self._anomaly_issue_ids = current_issue_ids
+            if any(str(extra.get(name, "true")).lower() != "false" for name in setting_names)
+        ]
+        try:
+            for kind in enabled_kinds:
+                result = await self.client.async_discover(kind)
+                if not result.available:
+                    discovery = None
+                    break
+                discovery[kind] = result  # type: ignore[index]
+        except VaultAuthenticationError:
+            raise
+        except (VaultApiError, ValidationError) as err:
+            # Replica daemons don't serve discovery endpoints.
+            LOGGER.debug("Discovery unavailable, counting job items only: %s", err)
+            discovery = None
+
+        self._coverage = compute_coverage(summary, settings, discovery)
+        self._coverage_fetched_at = now
+        return self._coverage
 
     async def _async_update_data(self) -> VaultApiData:
         """Fetch data from all Vault API endpoints.
@@ -156,6 +239,8 @@ class VaultDataUpdateCoordinator(DataUpdateCoordinator[VaultApiData]):
             results = await asyncio.gather(*(self._fetch_job_data(job.id, semaphore) for job in jobs))
             job_runs: dict[int, list] = {job_id: runs for job_id, runs, _ in results}
             restore_point_counts: dict[int, int] = {job_id: rp_count for job_id, _, rp_count in results}
+            next_runs = await self._fetch_next_runs()
+            coverage = await self._fetch_coverage(settings)
 
         except VaultConnectionError as err:
             raise UpdateFailed(f"Error communicating with Vault: {err}") from err
@@ -179,10 +264,9 @@ class VaultDataUpdateCoordinator(DataUpdateCoordinator[VaultApiData]):
             restore_point_counts=restore_point_counts,
             activity=activity,
             anomalies=anomalies,
+            next_runs=next_runs,
+            coverage=coverage,
         )
-
-        self._update_storage_repair_issues(storage)
-        self._update_anomaly_repair_issues(anomalies, {job.id: job.name for job in jobs})
 
         # Adjust polling rate: faster when a job is running
         has_running = any(runs and self._job_run_status_text(runs[0].status) == "running" for runs in job_runs.values())

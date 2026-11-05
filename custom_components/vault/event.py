@@ -16,9 +16,13 @@ EVENT_BACKUP_STARTED = "backup_started"
 EVENT_BACKUP_COMPLETED = "backup_completed"
 EVENT_BACKUP_FAILED = "backup_failed"
 EVENT_MISSING_ITEMS = "missing_items_detected"
+EVENT_RESTORE_STARTED = "restore_started"
+EVENT_RESTORE_COMPLETED = "restore_completed"
+EVENT_RESTORE_FAILED = "restore_failed"
 
 _EVENT_ATTRIBUTE_FIELDS = (
     "run_id",
+    "run_type",
     "status",
     "items_total",
     "items_done",
@@ -76,6 +80,9 @@ class VaultJobEventEntity(EventEntity, VaultJobEntity):
         EVENT_BACKUP_COMPLETED,
         EVENT_BACKUP_FAILED,
         EVENT_MISSING_ITEMS,
+        EVENT_RESTORE_STARTED,
+        EVENT_RESTORE_COMPLETED,
+        EVENT_RESTORE_FAILED,
     ]
 
     def __init__(
@@ -102,11 +109,15 @@ class VaultJobEventEntity(EventEntity, VaultJobEntity):
         if event.job_id != self._job_id:
             return
 
+        restore = (event.run_type or "").lower() == "restore"
         if event.type == "job_run_started":
-            event_type = EVENT_BACKUP_STARTED
+            event_type = EVENT_RESTORE_STARTED if restore else EVENT_BACKUP_STARTED
         elif event.type == "job_run_completed":
-            status = (event.status or "").lower()
-            event_type = EVENT_BACKUP_FAILED if status in ("failed", "partial") else EVENT_BACKUP_COMPLETED
+            failed = (event.status or "").lower() in ("failed", "partial")
+            if restore:
+                event_type = EVENT_RESTORE_FAILED if failed else EVENT_RESTORE_COMPLETED
+            else:
+                event_type = EVENT_BACKUP_FAILED if failed else EVENT_BACKUP_COMPLETED
         elif event.type == "stale_items_detected":
             # Vault skips items that no longer exist on the server and still
             # reports the run as completed — surface the alert separately.

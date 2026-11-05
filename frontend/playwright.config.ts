@@ -4,7 +4,7 @@ const port = Number(process.env.BROWSER_TEST_PORT ?? 4173);
 const host = process.env.BROWSER_TEST_HOST ?? "127.0.0.1";
 
 export default defineConfig({
-  testDir: "test/browser",
+  testDir: "test",
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,

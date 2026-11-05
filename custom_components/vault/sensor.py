@@ -7,14 +7,16 @@ from dataclasses import dataclass, replace
 import json
 from typing import Any
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorEntityDescription
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorEntityDescription, SensorStateClass
 from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfInformation
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .api.models import BackupJob, JobRun, StorageDestination, StorageType, VaultApiData, WebSocketEvent
+from .const import LOGGER
 from .coordinator import VaultConfigEntry, VaultDataUpdateCoordinator
 from .entity import VaultEntity, VaultJobEntity, async_prune_orphan_entities, async_remove_stale_entities
+from .runs import RUN_TYPE_RESTORE, active_run, latest_backup_run, latest_finished_backup_run, run_type
 
 PARALLEL_UPDATES = 0
 
@@ -30,6 +32,7 @@ class VaultSensorEntityDescription(SensorEntityDescription):
 
     value_fn: Callable[[VaultApiData], Any]
     attributes_fn: Callable[[VaultApiData], dict[str, Any] | None] | None = None
+    available_fn: Callable[[VaultApiData], bool] = lambda _: True
 
 
 def _runner_queue_length(data: VaultApiData) -> int:
@@ -37,6 +40,15 @@ def _runner_queue_length(data: VaultApiData) -> int:
     runner_status = data.runner_status or {}
     queue = runner_status.get("queue")
     return len(queue) if isinstance(queue, list) else 0
+
+
+def _runner_attributes(data: VaultApiData) -> dict[str, Any] | None:
+    """Say whether the runner is backing up or restoring, and how far it is."""
+    runner_status = data.runner_status or {}
+    if not runner_status.get("active"):
+        return None
+    attrs = {key: runner_status.get(key) for key in ("run_type", "items_done", "items_total")}
+    return {key: value for key, value in attrs.items() if value is not None} or None
 
 
 def _runner_current_job(data: VaultApiData) -> str:
@@ -65,6 +77,69 @@ def _open_anomalies_attributes(data: VaultApiData) -> dict[str, Any] | None:
             }
             for a in data.anomalies
         ]
+    }
+
+
+def _next_backup_job(data: VaultApiData) -> BackupJob | None:
+    """Return the enabled job that runs next, or None when nothing is scheduled."""
+    enabled = {job.id: job for job in data.jobs if job.enabled}
+    upcoming = [(when, job_id) for job_id, when in data.next_runs.items() if job_id in enabled]
+    if not upcoming:
+        return None
+    return enabled[min(upcoming)[1]]
+
+
+def _next_backup(data: VaultApiData) -> Any:
+    """Return when the next scheduled backup starts."""
+    job = _next_backup_job(data)
+    return data.next_runs[job.id] if job else None
+
+
+def _next_backup_attributes(data: VaultApiData) -> dict[str, Any] | None:
+    """Name the job that runs next."""
+    job = _next_backup_job(data)
+    return {"job_id": job.id, "job_name": job.name} if job else None
+
+
+def _unprotected_items_attributes(data: VaultApiData) -> dict[str, Any] | None:
+    """List the unprotected items (capped) and how many are waiting for a first backup."""
+    coverage = data.coverage
+    if coverage is None or coverage.unprotected is None:
+        return None
+    return {
+        "pending_items": coverage.pending,
+        "items": coverage.unprotected_keys[:_MAX_LISTED_ITEMS],
+    }
+
+
+_MAX_LISTED_ITEMS = 50
+
+
+def _destinations_in_use(data: VaultApiData) -> list[StorageDestination]:
+    """Return destinations that enabled jobs have written restore points to.
+
+    This is what the 3-2-1 rule can be checked against: a destination only
+    holds a copy once a job has backed up to it.
+    """
+    used_ids = {
+        job.storage_dest_id for job in data.jobs if job.enabled and data.restore_point_counts.get(job.id, 0) > 0
+    }
+    return [dest for dest in data.storage if dest.id in used_ids]
+
+
+def _destinations_in_use_attributes(data: VaultApiData) -> dict[str, Any]:
+    """Describe media and location of the destinations in use.
+
+    Vault doesn't record where a destination is, so any network type counts
+    as remote. SMB and NFS shares can still be on the same site.
+    """
+    destinations = _destinations_in_use(data)
+    types = {_storage_type_text(dest) for dest in destinations}
+    remote = [dest for dest in destinations if _storage_type_text(dest) != StorageType.LOCAL.value]
+    return {
+        "media_types": len({"disk" if t == StorageType.LOCAL.value else "network" for t in types}),
+        "remote_destinations": len(remote),
+        "destinations": sorted(dest.name for dest in destinations),
     }
 
 
@@ -134,6 +209,7 @@ GLOBAL_SENSOR_DESCRIPTIONS: tuple[VaultSensorEntityDescription, ...] = (
         translation_key="runner_current_job_id",
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=_runner_current_job,
+        attributes_fn=_runner_attributes,
     ),
     VaultSensorEntityDescription(
         key="open_anomalies",
@@ -141,6 +217,37 @@ GLOBAL_SENSOR_DESCRIPTIONS: tuple[VaultSensorEntityDescription, ...] = (
         native_unit_of_measurement="anomalies",
         value_fn=lambda d: len(d.anomalies),
         attributes_fn=_open_anomalies_attributes,
+    ),
+    VaultSensorEntityDescription(
+        key="next_backup",
+        translation_key="next_backup",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=_next_backup,
+        attributes_fn=_next_backup_attributes,
+    ),
+    VaultSensorEntityDescription(
+        key="protected_items",
+        translation_key="protected_items",
+        native_unit_of_measurement="items",
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda d: d.coverage.protected if d.coverage else None,
+        available_fn=lambda d: d.coverage is not None,
+    ),
+    VaultSensorEntityDescription(
+        key="unprotected_items",
+        translation_key="unprotected_items",
+        native_unit_of_measurement="items",
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda d: d.coverage.unprotected if d.coverage else None,
+        attributes_fn=_unprotected_items_attributes,
+        available_fn=lambda d: d.coverage is not None and d.coverage.unprotected is not None,
+    ),
+    VaultSensorEntityDescription(
+        key="destinations_in_use",
+        translation_key="destinations_in_use",
+        native_unit_of_measurement="destinations",
+        value_fn=lambda d: len(_destinations_in_use(d)),
+        attributes_fn=_destinations_in_use_attributes,
     ),
 )
 
@@ -151,9 +258,13 @@ GLOBAL_SENSOR_DESCRIPTIONS: tuple[VaultSensorEntityDescription, ...] = (
 
 
 def _latest_run(data: VaultApiData, job_id: int) -> JobRun | None:
-    """Return the most recent run for a job, or None."""
-    runs = data.job_runs.get(job_id, [])
-    return runs[0] if runs else None
+    """Return the job's latest finished backup run, or None.
+
+    Last run, size, duration and item counts describe a finished backup: a
+    backup in progress has no completion time or size yet, and restores
+    don't count.
+    """
+    return latest_finished_backup_run(data, job_id)
 
 
 def _status_text(value: object) -> str:
@@ -171,6 +282,7 @@ class VaultJobSensorEntityDescription(SensorEntityDescription):
 
 _JOB_SENSOR_LABELS: dict[str, str] = {
     "job_status": "Status",
+    "job_next_run": "Next run",
     "job_last_run": "Last run",
     "job_last_size": "Last size",
     "job_last_duration": "Last duration",
@@ -181,10 +293,32 @@ _JOB_SENSOR_LABELS: dict[str, str] = {
 }
 
 
-def _job_status(data: VaultApiData, job_id: int) -> str:
-    """Return the status string of the most recent run for a job."""
-    run = _latest_run(data, job_id)
-    return _status_text(run.status) if run else "idle"
+JOB_STATUS_OPTIONS = ["idle", "running", "restoring", "completed", "partial", "failed", "skipped", "cancelled"]
+_JOB_STATUS_ALIASES = {"success": "completed", "error": "failed", "canceled": "cancelled"}
+
+
+def _job_status(data: VaultApiData, job_id: int) -> str | None:
+    """Return the status of the most recent run for a job, or None if unrecognised."""
+    active = active_run(data, job_id)
+    if active is not None and run_type(active) == RUN_TYPE_RESTORE:
+        return "restoring"
+    run = latest_backup_run(data, job_id)
+    if run is None:
+        return "idle"
+    status = _status_text(run.status)
+    status = _JOB_STATUS_ALIASES.get(status, status)
+    if status not in JOB_STATUS_OPTIONS:
+        LOGGER.debug("Unrecognised status %r for job %s", status, job_id)
+        return None
+    return status
+
+
+def _job_status_attributes(data: VaultApiData, job_id: int) -> dict[str, Any] | None:
+    """Expose whether the job is enabled and its schedule."""
+    job = next((j for j in data.jobs if j.id == job_id), None)
+    if job is None:
+        return None
+    return {"enabled": job.enabled, "schedule": job.schedule or None}
 
 
 def _job_last_run(data: VaultApiData, job_id: int) -> Any:
@@ -304,7 +438,16 @@ def _job_sensor_descriptions() -> tuple[VaultJobSensorEntityDescription, ...]:
         VaultJobSensorEntityDescription(
             key="status",
             translation_key="job_status",
+            device_class=SensorDeviceClass.ENUM,
+            options=JOB_STATUS_OPTIONS,
             value_fn=_job_status,
+            attributes_fn=_job_status_attributes,
+        ),
+        VaultJobSensorEntityDescription(
+            key="next_run",
+            translation_key="job_next_run",
+            device_class=SensorDeviceClass.TIMESTAMP,
+            value_fn=lambda data, job_id: data.next_runs.get(job_id),
         ),
         VaultJobSensorEntityDescription(
             key="last_run",
@@ -561,6 +704,11 @@ class VaultSensor(SensorEntity, VaultEntity):
         self.entity_description = description
 
     @property
+    def available(self) -> bool:
+        """Return False when the daemon doesn't provide this sensor's data."""
+        return super().available and self.entity_description.available_fn(self.coordinator.data)
+
+    @property
     def native_value(self) -> Any:
         """Return the sensor value."""
         return self.entity_description.value_fn(self.coordinator.data)
@@ -634,7 +782,21 @@ class VaultJobProgressSensor(SensorEntity, VaultJobEntity):
     @callback
     def _handle_ws_event(self, event: WebSocketEvent) -> None:
         """Write state immediately when a progress-related event arrives for this job."""
-        if event.job_id == self._job_id and event.type in ("backup_progress", "job_run_started", "job_run_completed"):
+        if event.type not in (
+            "backup_progress",
+            "restore_progress",
+            "item_backup_start",
+            "item_restore_start",
+            "job_run_started",
+            "job_run_completed",
+        ):
+            return
+        job_id = event.job_id
+        if job_id is None:
+            # Item progress events often carry no job id; they belong to the current run.
+            run = self.coordinator.config_entry.runtime_data.current_run
+            job_id = run.job_id if run else None
+        if job_id == self._job_id:
             self.async_write_ha_state()
 
     @property

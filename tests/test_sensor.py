@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 
 from custom_components.vault.api.models import (
     BackupJob,
@@ -30,12 +30,13 @@ async def test_global_sensors_created(
 
     # Global: vault_status, vault_version, vault_mode, jobs_total, jobs_enabled,
     # encryption_status, runner_queue_length, runner_current_job_id,
-    # open_anomalies (9)
-    # Per-job: 3 jobs x 8 sensors = 24
+    # open_anomalies, next_backup, protected_items, unprotected_items,
+    # destinations_in_use (13)
+    # Per-job: 3 jobs x 9 sensors = 27
     # Per-job progress: 3 jobs x 1 = 3
     # Per-storage: 2 storage x 6 sensors = 12
-    # Total: 48
-    assert len(sensor_entries) == 48
+    # Total: 55
+    assert len(sensor_entries) == 55
 
 
 async def test_vault_status_sensor(
@@ -174,8 +175,8 @@ async def test_dynamic_job_detection_sensor(
     entries_after = er.async_entries_for_config_entry(registry, mock_setup_entry.entry_id)
     sensor_count_after = len([e for e in entries_after if e.domain == "sensor"])
 
-    # Should have 9 new entities for the new job (8 sensors + 1 progress)
-    assert sensor_count_after == sensor_count_before + 9
+    # Should have 10 new entities for the new job (9 sensors + 1 progress)
+    assert sensor_count_after == sensor_count_before + 10
 
 
 async def test_progress_sensor_value(

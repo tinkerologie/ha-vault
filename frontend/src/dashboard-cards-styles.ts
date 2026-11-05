@@ -1,450 +1,413 @@
 import { css } from "lit";
 import { themeTokens } from "./styles";
 
-export const dashboardCardStyles = [
-  themeTokens,
-  css`
-    :host {
-      display: block;
-      height: 100%;
-      box-sizing: border-box;
-    }
+export const cardStyles = css`
+  :host {
+    display: block;
+    min-width: 0;
+    height: 100%;
+    container-type: inline-size;
+    container-name: vault-card;
+    color: var(--vault-text);
+  }
 
-    ha-card {
-      height: 100%;
-      box-sizing: border-box;
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      overflow: hidden;
-      background: var(--vault-card-bg);
-      border: 1px solid var(--vault-border);
-      border-radius: var(--vault-radius);
-      color: var(--vault-text);
-      font-family: var(--ha-card-font-family, inherit);
-    }
+  ha-card {
+    box-sizing: border-box;
+    height: 100%;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    /* Never hide content: a card given less room than it needs scrolls. */
+    overflow: auto;
+  }
 
-    :host([embedded]) ha-card {
-      border: none;
-      box-shadow: none;
-      background: transparent;
-      padding: 0;
-    }
+  :host([embedded]) ha-card {
+    padding: 0;
+    background: none;
+    border: none;
+    box-shadow: none;
+  }
 
-    .icon {
-      display: inline-block;
-      vertical-align: middle;
-      fill: currentColor;
-      flex-shrink: 0;
-    }
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
+  }
 
-    /* Card Header */
-    .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-    }
+  .title {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    font: inherit;
+    font-size: var(--ha-font-size-l, 1rem);
+    font-weight: var(--ha-font-weight-medium, 500);
+    line-height: 1.4;
+    color: var(--vault-text);
+  }
 
-    .header-main {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      min-width: 0;
-    }
+  .title .title-text {
+    overflow-wrap: anywhere;
+  }
 
-    .header-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      background: var(--vault-accent-muted);
-      color: var(--vault-accent);
-      display: grid;
-      place-items: center;
-      flex-shrink: 0;
-    }
+  .title-icon {
+    flex: none;
+    color: var(--vault-primary);
+  }
 
-    .header-icon.success {
-      background: var(--vault-success-muted);
-      color: var(--vault-success);
-    }
+  svg.icon {
+    flex: none;
+    fill: currentColor;
+  }
 
-    .header-icon.error {
-      background: var(--vault-error-muted);
-      color: var(--vault-error);
-    }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: var(--ha-font-size-s, 0.8125rem);
+    font-weight: var(--ha-font-weight-medium, 500);
+    line-height: 1.5;
+    white-space: nowrap;
+    background: var(--vault-neutral-fill);
+    color: var(--vault-neutral-text);
+  }
 
-    .header-titles {
-      display: flex;
-      flex-direction: column;
-      min-width: 0;
-    }
+  .lvl-ok { background: var(--vault-ok-fill); color: var(--vault-ok-text); }
+  .lvl-idle { background: var(--vault-neutral-fill); color: var(--vault-neutral-text); }
+  .lvl-disabled { background: var(--vault-neutral-fill); color: var(--vault-neutral-text); }
+  .lvl-running { background: var(--vault-running-fill); color: var(--vault-running-text); }
+  .lvl-warning { background: var(--vault-warning-fill); color: var(--vault-warning-text); }
+  .lvl-failed { background: var(--vault-failed-fill); color: var(--vault-failed-text); }
+  .lvl-unknown { background: var(--vault-neutral-fill); color: var(--vault-neutral-text); }
 
-    .header-tag {
-      font-size: 0.72rem;
-      font-weight: 700;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      color: var(--vault-subtext);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
 
-    .header-title {
-      font-size: 1.05rem;
-      font-weight: 700;
-      color: var(--vault-text);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      line-height: 1.25;
-    }
+  .status-icon {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+  }
 
-    .header-subtitle {
-      font-size: 0.75rem;
-      color: var(--vault-subtext);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
+  .status-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
 
-    .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-shrink: 0;
-    }
+  .value {
+    font-size: var(--ha-font-size-2xl, 1.5rem);
+    font-weight: var(--ha-font-weight-medium, 500);
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
 
-    /* KPI Display (Health, Protected, Next run, Last backup) */
-    .kpi-container {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      padding-top: 4px;
-    }
+  .value small {
+    font-size: var(--ha-font-size-m, 0.875rem);
+    font-weight: var(--ha-font-weight-normal, 400);
+    color: var(--vault-subtext);
+  }
 
-    .kpi-main {
-      display: flex;
-      flex-direction: column;
-      min-width: 0;
-    }
+  .label {
+    font-weight: var(--ha-font-weight-medium, 500);
+    overflow-wrap: anywhere;
+  }
 
-    .kpi-value-row {
-      display: flex;
-      align-items: baseline;
-      gap: 4px;
-    }
+  .sub {
+    font-size: var(--ha-font-size-s, 0.8125rem);
+    color: var(--vault-subtext);
+    overflow-wrap: anywhere;
+  }
 
-    .kpi-value {
-      font-size: 1.85rem;
-      font-weight: 800;
-      line-height: 1.1;
-      color: var(--vault-text);
-      letter-spacing: -0.02em;
-    }
+  .muted {
+    color: var(--vault-subtext);
+  }
 
-    .kpi-unit {
-      font-size: 1rem;
-      font-weight: 600;
-      color: var(--vault-subtext);
-    }
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
 
-    .kpi-label {
-      font-size: 0.82rem;
-      font-weight: 600;
-      color: var(--vault-text);
-      margin-top: 2px;
-    }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: var(--vault-row-radius);
+    border: 1px solid var(--vault-border);
+    min-width: 0;
+  }
 
-    .kpi-sub {
-      font-size: 0.75rem;
-      color: var(--vault-subtext);
-      margin-top: 2px;
-    }
+  .row-main {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
 
-    /* Circular Score Gauge */
-    .score-circle {
-      position: relative;
-      width: 52px;
-      height: 52px;
-      flex-shrink: 0;
-      display: grid;
-      place-items: center;
-    }
+  .row-title {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 8px;
+    min-width: 0;
+  }
 
-    .score-circle svg {
-      width: 100%;
-      height: 100%;
-      transform: rotate(-90deg);
-    }
+  .reason {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    text-align: start;
+    overflow-wrap: anywhere;
+  }
 
-    .score-circle circle {
-      fill: none;
-      stroke-width: 5;
-    }
+  .reason svg {
+    margin-top: 1px;
+  }
 
-    .score-circle-bg {
-      stroke: rgba(255, 255, 255, 0.08);
-    }
+  .row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    flex: none;
+  }
 
-    .score-circle-fill {
-      stroke: var(--vault-success);
-      stroke-linecap: round;
-      transition: stroke-dashoffset 0.5s ease;
-    }
+  .link {
+    all: unset;
+    box-sizing: border-box;
+    cursor: pointer;
+    border-radius: 6px;
+    max-width: 100%;
+  }
 
-    .score-text {
-      position: absolute;
-      font-size: 0.85rem;
-      font-weight: 800;
-      color: var(--vault-text);
-    }
+  .link:hover .label,
+  .link:hover.label {
+    text-decoration: underline;
+  }
 
-    /* Status Badges */
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      font-size: 0.72rem;
-      font-weight: 600;
-      padding: 3px 8px;
-      border-radius: 9999px;
-      line-height: 1.2;
-      width: fit-content;
-    }
+  .tappable {
+    cursor: pointer;
+  }
 
-    .badge-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: currentColor;
-    }
+  .tappable:hover {
+    background: var(--vault-surface-hover);
+  }
 
-    .badge.success {
-      background: var(--vault-success-muted);
-      color: var(--vault-success);
-    }
+  :is(.link, .tappable, .btn, a, .alert button):focus-visible {
+    outline: 2px solid var(--vault-focus);
+    outline-offset: 2px;
+  }
 
-    .badge.running {
-      background: var(--vault-info-muted);
-      color: var(--vault-info);
-    }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 0 14px;
+    border: 1px solid var(--vault-border);
+    border-radius: 999px;
+    background: var(--vault-surface);
+    color: var(--vault-text);
+    font: inherit;
+    font-size: var(--ha-font-size-m, 0.875rem);
+    font-weight: var(--ha-font-weight-medium, 500);
+    text-decoration: none;
+    cursor: pointer;
+    white-space: nowrap;
+  }
 
-    .badge.warning {
-      background: var(--vault-warning-muted);
-      color: var(--vault-warning);
-    }
+  .btn:hover {
+    background: var(--vault-surface-hover);
+  }
 
-    .badge.error {
-      background: var(--vault-error-muted);
-      color: var(--vault-error);
-    }
+  /* White on the default primary blue is only about 3.3:1, so use the tinted fill with body text. */
+  .btn.primary {
+    background: var(--ha-color-fill-primary-normal-resting, color-mix(in srgb, var(--vault-primary) 20%, transparent));
+    border-color: var(--vault-primary);
+    color: var(--vault-text);
+  }
 
-    .badge.neutral {
-      background: rgba(255, 255, 255, 0.06);
-      color: var(--vault-subtext);
-    }
+  .btn[aria-disabled="true"] {
+    opacity: 0.6;
+    cursor: default;
+  }
 
-    /* Progress bar */
-    .progress-bar {
-      width: 100%;
-      height: 6px;
-      background: rgba(255, 255, 255, 0.08);
-      border-radius: 9999px;
-      overflow: hidden;
-      position: relative;
-    }
-
-    .progress-fill {
-      height: 100%;
-      background: var(--vault-success);
-      border-radius: 9999px;
-      transition: width 0.3s ease;
-    }
-
-    .progress-fill.running {
-      background: var(--vault-info);
-      background-image: linear-gradient(
-        45deg,
-        rgba(255, 255, 255, 0.15) 25%,
-        transparent 25%,
-        transparent 50%,
-        rgba(255, 255, 255, 0.15) 50%,
-        rgba(255, 255, 255, 0.15) 75%,
-        transparent 75%,
-        transparent
-      );
-      background-size: 16px 16px;
-      animation: progress-stripes 1s linear infinite;
-    }
-
-    .progress-fill.warning {
-      background: var(--vault-warning);
-    }
-
-    .progress-fill.error {
-      background: var(--vault-error);
-    }
-
-    @keyframes progress-stripes {
-      from {
-        background-position: 16px 0;
-      }
-      to {
-        background-position: 0 0;
-      }
-    }
-
-    /* List items & Job Rows */
-    .item-list {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .card-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 10px 12px;
-      background: var(--vault-surface);
-      border: 1px solid var(--vault-border);
-      border-radius: 8px;
-      transition: background 0.15s ease, border-color 0.15s ease;
-    }
-
-    .card-row:hover {
-      background: var(--vault-surface-hover);
-    }
-
-    .card-row-main {
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-      min-width: 0;
-      flex: 1;
-    }
-
-    .card-row-title-bar {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .card-row-title {
-      font-size: 0.88rem;
-      font-weight: 600;
-      color: var(--vault-text);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .card-row-meta {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 0.75rem;
-      color: var(--vault-subtext);
-      flex-wrap: wrap;
-    }
-
-    .card-row-actions {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      flex-shrink: 0;
-    }
-
-    /* Action Buttons */
+  @media (pointer: coarse) {
     .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 5px 10px;
-      border-radius: 6px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      cursor: pointer;
-      border: 1px solid transparent;
-      transition: all 0.15s ease;
-      background: rgba(255, 255, 255, 0.08);
-      color: var(--vault-text);
+      min-height: 44px;
     }
+  }
 
-    .btn:hover:not(:disabled) {
-      background: rgba(255, 255, 255, 0.14);
-    }
+  .meter {
+    position: relative;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--vault-track);
+    overflow: hidden;
+  }
 
-    .btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
+  .meter-fill {
+    height: 100%;
+    border-radius: inherit;
+    background: var(--vault-ok);
+    transition: width 0.4s ease;
+  }
 
-    .btn.primary {
-      background: var(--vault-accent);
-      color: #111116;
-      border-color: var(--vault-accent);
-    }
+  .meter-fill.lvl-running {
+    background-color: var(--vault-running);
+    background-image: linear-gradient(
+      45deg,
+      color-mix(in srgb, var(--vault-running) 70%, #fff) 25%,
+      transparent 25%,
+      transparent 50%,
+      color-mix(in srgb, var(--vault-running) 70%, #fff) 50%,
+      color-mix(in srgb, var(--vault-running) 70%, #fff) 75%,
+      transparent 75%
+    );
+    background-size: 16px 16px;
+    animation: vault-stripes 1s linear infinite;
+  }
 
-    .btn.primary:hover:not(:disabled) {
-      background: var(--vault-accent-light);
-      border-color: var(--vault-accent-light);
-    }
+  .meter-fill.lvl-warning { background: var(--vault-warning); }
+  .meter-fill.lvl-failed { background: var(--vault-failed); }
+  .meter-fill.lvl-unknown { background: var(--vault-neutral); }
 
-    .btn.amber {
-      background: color-mix(in srgb, #f59e0b 20%, transparent);
-      color: var(--vault-accent);
-      border-color: color-mix(in srgb, #f59e0b 30%, transparent);
-    }
+  @keyframes vault-stripes {
+    from { background-position: 0 0; }
+    to { background-position: 16px 0; }
+  }
 
-    .btn.amber:hover:not(:disabled) {
-      background: color-mix(in srgb, #f59e0b 30%, transparent);
-    }
+  .alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: var(--vault-row-radius);
+    background: var(--vault-failed-fill);
+    color: var(--vault-failed-text);
+    font-size: var(--ha-font-size-s, 0.8125rem);
+  }
 
-    /* Tag Chips (Items in backup, e.g. ✓ plex, ✓ seerr) */
-    .chip-container {
-      display: flex;
+  .alert .alert-text {
+    flex: 1;
+    overflow-wrap: anywhere;
+  }
+
+  .alert button {
+    all: unset;
+    cursor: pointer;
+    border-radius: 4px;
+    display: grid;
+    place-items: center;
+    min-width: 24px;
+    min-height: 24px;
+  }
+
+  .confirm {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: var(--vault-row-radius);
+    background: var(--vault-surface);
+  }
+
+  .empty {
+    color: var(--vault-subtext);
+    padding: 4px 0;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .fact {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .fact-label {
+    font-size: var(--ha-font-size-s, 0.8125rem);
+    color: var(--vault-subtext);
+  }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  @container vault-card (max-width: 420px) {
+    .row {
       flex-wrap: wrap;
-      gap: 4px;
-      margin-top: 4px;
     }
+    .reason {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    text-align: start;
+    overflow-wrap: anywhere;
+  }
 
-    .chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 3px;
-      padding: 2px 6px;
-      border-radius: 4px;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      font-size: 0.7rem;
-      color: var(--vault-subtext);
-    }
+  .reason svg {
+    margin-top: 1px;
+  }
 
-    .chip.success {
-      color: var(--vault-success);
+  .row-actions {
+      width: 100%;
     }
+    .grid-3 {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
 
-    /* Empty state */
-    .empty-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 20px 16px;
-      color: var(--vault-subtext);
-      font-size: 0.85rem;
-      gap: 8px;
+  @container vault-card (max-width: 300px) {
+    .grid-2 {
+      grid-template-columns: minmax(0, 1fr);
     }
+  }
 
-    .empty-state-icon {
-      color: var(--vault-standby);
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation: none !important;
+      transition: none !important;
     }
-  `,
-];
+  }
+`;
+
+export const dashboardCardStyles = [themeTokens, cardStyles];

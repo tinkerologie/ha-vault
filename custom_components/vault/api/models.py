@@ -278,6 +278,59 @@ class Anomaly(VaultModel):
     last_seen_at: datetime | None = None
 
 
+# --- Coverage ---
+
+
+class HealthSummary(VaultModel):
+    """Response from GET /api/v1/health/summary (the fields the integration uses)."""
+
+    model_config = {"extra": "allow"}
+
+    total_items: int = 0
+    protected_items: int = 0
+    protected_keys: list[str] = Field(default_factory=list)
+    pending_keys: list[str] = Field(default_factory=list)
+    last_success_at: datetime | None = None
+
+
+class DiscoveredItem(VaultModel):
+    """An item from GET /api/v1/containers, /vms or /folders."""
+
+    model_config = {"extra": "allow"}
+
+    name: str
+    type: str = ""
+    settings: dict[str, object] = Field(default_factory=dict)
+
+    @property
+    def key(self) -> str:
+        """Return the ``type:name`` key Vault uses for restore point membership."""
+        return f"{self.type}:{self.name}"
+
+
+class Discovery(VaultModel):
+    """A discovery response: the items and whether discovery worked."""
+
+    items: list[DiscoveredItem] = Field(default_factory=list)
+    available: bool = False
+
+
+class Coverage(VaultModel):
+    """Which items Vault protects, computed the same way as Vault's dashboard.
+
+    ``protected`` items are in at least one restore point. ``pending`` items are
+    in a job but not backed up yet. ``unprotected`` counts every item that is
+    not protected, including pending ones. It is ``None`` when discovery is
+    unavailable (replica mode, Docker or libvirt down), because items that no
+    job covers can't be counted then.
+    """
+
+    protected: int = 0
+    pending: int = 0
+    unprotected: int | None = None
+    unprotected_keys: list[str] = Field(default_factory=list)
+
+
 # --- Aggregated coordinator data ---
 
 
@@ -294,6 +347,10 @@ class VaultApiData(VaultModel):
     restore_point_counts: dict[int, int] = Field(default_factory=dict)
     activity: list[ActivityEntry] = Field(default_factory=list)
     anomalies: list[Anomaly] = Field(default_factory=list)
+    next_runs: dict[int, datetime] = Field(default_factory=dict)
+    """Next scheduled run per job id; jobs without a schedule are absent."""
+    coverage: Coverage | None = None
+    """Item coverage; ``None`` when the daemon doesn't provide a health summary."""
 
 
 # --- WebSocket events ---

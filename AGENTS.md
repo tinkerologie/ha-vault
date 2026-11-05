@@ -181,7 +181,7 @@ As an AI agent, **aim for Silver or Gold Quality Scale** when generating code:
 
 - Validates manifest.json, translations, services.yaml, and integration structure
 - Uses official Home Assistant Core validation scripts locally
-- First run downloads ~27 MB, subsequent runs are fast with `--no-update`
+- First run downloads Home Assistant Core at the pinned revision; later runs reuse it (`--update` re-fetches)
 
 **For comprehensive standards, see:**
 
@@ -362,12 +362,9 @@ See `.github/instructions/entities.instructions.md` for entity patterns.
 
 **Repairs:**
 
-- Create `repairs.py` in integration root (Gold Quality Scale)
-- Use `async_create_issue()` with severity levels (WARNING, ERROR, CRITICAL)
-- Implement `RepairsFlow` for guided user fixes
-- Delete issues after successful repair
-
-See `.github/instructions/repairs.instructions.md` for comprehensive patterns.
+- Repairs are only for problems the user can act on in Home Assistant, such as expired credentials or a setting that must change. Status, health and alerts belong in entities.
+- Vault has no repair issues by design: anomalies and storage health are reported by the open anomalies sensor, each job's Problem binary sensor, the storage health sensors and the dashboard cards.
+- If a user-actionable problem appears, create the issue with a translation key and, when there's a fix, a `RepairsFlow` in `repairs.py`. See `.github/instructions/repairs.instructions.md`.
 
 **Entity availability:**
 

@@ -341,6 +341,17 @@
         "minItems": 1,
         "uniqueItems": true
       },
+      "categories": {
+        "description": "Up to three integration categories, as `category` or `category.subcategory`, from Home Assistant's integration categories. Optional for custom integrations.\nhttps://contributors.home-assistant.io/blog/2026/10/20/integration-categories/",
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 3,
+        "items": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]+(\\.[a-z0-9_]+)?$"
+        },
+        "uniqueItems": true
+      },
       "codeowners": {
         "description": "A list of GitHub usernames or GitHub team names of the integration owners.\nhttps://developers.home-assistant.io/docs/creating_integration_manifest/#code-owners",
         "type": "array",

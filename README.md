@@ -22,6 +22,8 @@
 - **Storage Management**: Test storage destinations and monitor health
 - **Encryption Support**: Track encryption status and manage encrypted backups
 - **Diagnostic Info**: View Vault version, job statistics, and system health
+- **Coverage and schedule**: See which containers, VMs and folders aren't backed up yet, and when the next backup runs
+- **Dashboard cards**: Status, jobs, activity, storage, anomalies and 3-2-1 cards that follow your theme and language (see [Dashboard cards](docs/user/CONFIGURATION.md#dashboard-cards))
 - **Reconfigurable**: Change connection settings anytime without removing the integration
 
 **This integration will set up the following platforms.**
@@ -58,9 +60,18 @@ Then:
 
 If you prefer not to use HACS:
 
-1. Download the `custom_components/vault/` folder from this repository
-2. Copy it to your Home Assistant's `custom_components/` directory
+1. Download `vault.zip` from the latest release on the [Releases page](https://github.com/tinkerologie/ha-vault/releases)
+2. Create the folder `config/custom_components/vault/` and extract the zip into it. `manifest.json` must end up directly in that folder
 3. Restart Home Assistant
+
+Each release since the first one that ships `vault.zip` carries the zip, a `SHA256SUMS` file and a signed build provenance attestation. HACS and the Home Assistant Marketplace install the same zip. The "Downloaded N times" figure they show is the download count of the latest release's zip, so it starts again with each release. To check that a zip you downloaded is the one the release workflow built, run this in the folder that holds both files:
+
+```bash
+gh attestation verify vault.zip -R tinkerologie/ha-vault
+sha256sum -c SHA256SUMS
+```
+
+On macOS, use `shasum -a 256 -c SHA256SUMS`.
 
 </details>
 
@@ -130,13 +141,25 @@ These sensors provide information about your Vault instance:
 - **Encryption Status** (Diagnostic): Whether encryption is enabled
   - States: `enabled` or `disabled`
   - Disabled by default - enable in entity settings if needed
+- **Next Backup**: When the next scheduled backup of an enabled job starts; the `job_name` attribute names the job
+  - Vault reports schedule times in the Unraid server's time zone without an offset; the integration reads them in Home Assistant's time zone, so keep both on the same zone
+- **Protected Items**: Containers, VMs and folders that are in at least one restore point, counted the way Vault's dashboard counts them
+- **Unprotected Items**: Items that aren't in any restore point yet, including items no job covers
+  - Attributes: `pending_items` (in a job but waiting for their first backup) and `items` (up to 50 names)
+  - Unavailable when Vault can't list containers or VMs, so the count is never guessed
+- **Destinations In Use**: Storage destinations that enabled jobs have backed up to, for checking the 3-2-1 rule
+  - Attributes: `media_types`, `remote_destinations` (any non-local destination; Vault doesn't know where a share physically is) and `destinations`
+- **Runner Active Job** (Diagnostic): The job Vault is running, or `idle`; the `run_type` attribute says `backup` or `restore`
 
 ### Per-Job Sensors
 
 For each backup job configured in Vault, the integration creates sensors to monitor that job:
 
-- **Job Status**: Current status of the backup job
-  - States: `idle`, `running`, `completed`, `failed`
+- **Job Status**: Status of the job's latest backup, or `restoring` while a restore from it runs
+  - States: `idle` (never run), `running`, `restoring`, `completed`, `partial`, `failed`, `skipped`, `cancelled`
+  - Attributes: `enabled` and `schedule`
+  - Restore runs never change the job's backup sensors (status, last run, size, duration, items)
+- **Next Run**: When the job's next scheduled backup starts (unknown for disabled or unscheduled jobs)
 - **Last Run** (Diagnostic): Timestamp of the last backup run
 - **Last Run Duration** (Diagnostic): How long the last backup took (in seconds)
 - **Last Backup Size** (Diagnostic): Size of the last backup (in bytes/MB/GB)
@@ -144,7 +167,7 @@ For each backup job configured in Vault, the integration creates sensors to moni
 - **Items Failed**: Number of failed items in the latest run
 - **Restore Points** (Diagnostic): Current restore point count for this job
 - **Last Failure Reason** (Diagnostic): Parsed failure reason from the latest non-successful run
-- **Last Run Progress** (Diagnostic): Completion percentage during active backup (0-100%)
+- **Progress**: Completion percentage of the running backup or restore (0-100%), from the items done and the current item's progress
 
 ### Global Binary Sensors
 
@@ -158,12 +181,12 @@ For each backup job configured in Vault, the integration creates sensors to moni
 
 For each backup job, the integration creates binary sensors:
 
-- **Job Running**: Indicates whether the backup job is currently running
-  - On: Job is actively running
+- **Job Running**: Indicates whether the job is running a backup or a restore
+  - On: Job is actively running; the `run_type` attribute says `backup` or `restore`
   - Off: Job is idle or completed
   - Device class: Running
-- **Last Success**: Indicates whether the last backup completed successfully
-  - On: Last backup completed successfully
+- **Last Success**: Indicates whether the job's last finished backup completed successfully
+  - On: Last backup completed successfully (restores don't change it)
   - Off: Last backup failed or no runs yet
 
 ### Per-Job Buttons

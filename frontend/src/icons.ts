@@ -1,92 +1,41 @@
-import {
-  mdiAlertCircle,
-  mdiAlertOutline,
-  mdiArrowRight,
-  mdiBriefcaseOutline,
-  mdiCheck,
-  mdiCheckCircle,
-  mdiChevronDown,
-  mdiChevronUp,
-  mdiClockOutline,
-  mdiClose,
-  mdiCloseCircle,
-  mdiCog,
-  mdiDatabase,
-  mdiFileDocumentOutline,
-  mdiFolder,
-  mdiFolderNetwork,
-  mdiFormatListBulleted,
-  mdiHarddisk,
-  mdiHeart,
-  mdiHeartOutline,
-  mdiHistory,
-  mdiInformation,
-  mdiLock,
-  mdiLockOpenVariant,
-  mdiPackageVariantClosed,
-  mdiPlay,
-  mdiProgressClock,
-  mdiRestart,
-  mdiServer,
-  mdiShieldAlert,
-  mdiShieldCheck,
-  mdiShieldOutline,
-  mdiSpeedometer,
-  mdiSync,
-  mdiTagOutline,
-} from "@mdi/js";
-import { html, type TemplateResult } from "lit";
+import { html, svg, type TemplateResult } from "lit";
 
 export {
-  mdiAlertCircle,
-  mdiAlertOutline,
-  mdiArrowRight,
-  mdiBriefcaseOutline,
-  mdiCheck,
-  mdiCheckCircle,
-  mdiChevronDown,
-  mdiChevronUp,
-  mdiClockOutline,
+  mdiAlertCircleOutline,
+  mdiCalendarClock,
+  mdiCheckCircleOutline,
   mdiClose,
-  mdiCloseCircle,
-  mdiCog,
-  mdiDatabase,
-  mdiFileDocumentOutline,
-  mdiFolder,
-  mdiFolderNetwork,
+  mdiCloseCircleOutline,
   mdiFormatListBulleted,
   mdiHarddisk,
-  mdiHeart,
-  mdiHeartOutline,
-  mdiHistory,
-  mdiInformation,
-  mdiLock,
-  mdiLockOpenVariant,
-  mdiPackageVariantClosed,
+  mdiHelpCircleOutline,
+  mdiMinusCircleOutline,
+  mdiOpenInNew,
   mdiPlay,
   mdiProgressClock,
-  mdiRestart,
-  mdiServer,
-  mdiShieldAlert,
-  mdiShieldCheck,
+  mdiShieldAlertOutline,
+  mdiShieldCheckOutline,
   mdiShieldOutline,
-  mdiSpeedometer,
+  mdiShieldSyncOutline,
+  mdiBriefcaseOutline,
+  mdiHistory,
   mdiSync,
-  mdiTagOutline,
-};
+  mdiFileDocumentCheckOutline,
+} from "@mdi/js";
 
-export function iconTemplate(
-  path: string,
-  size = 20,
-  className = "icon"
-): TemplateResult {
-  return html`
-    <svg
-      class="${className}"
-      style="width: ${size}px; height: ${size}px;"
-      viewBox="0 0 24 24"
-    >
-      <path d="${path}" fill="currentColor"></path>
-    </svg>
-  `;
+/**
+ * A decorative icon. Icons never carry meaning on their own: every icon sits
+ * next to text that says the same, so they're hidden from assistive technology.
+ */
+export function iconTemplate(path: string, size = 20, className = "icon"): TemplateResult {
+  return html`<svg
+    class=${className}
+    width=${size}
+    height=${size}
+    viewBox="0 0 24 24"
+    aria-hidden="true"
+    focusable="false"
+  >
+    ${svg`<path d=${path}></path>`}
+  </svg>`;
 }

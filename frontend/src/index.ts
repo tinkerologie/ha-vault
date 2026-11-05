@@ -1,4 +1,4 @@
-// Entry point for all Vault dashboard cards bundled with ha-vault
+// Entry point for all Vault dashboard cards bundled with ha-vault.
 import "./health-card";
 import "./protected-card";
 import "./next-run-card";
