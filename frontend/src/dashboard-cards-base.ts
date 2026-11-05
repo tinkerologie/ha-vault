@@ -32,6 +32,8 @@ const LEVEL_ICONS: Record<Level, string> = {
 };
 
 const RELATIVE_TIME_REFRESH_MS = 60_000;
+/** How long a card waits before asking again after no Vault server or a failed request. */
+const RETRY_AFTER_MS = 30_000;
 
 export abstract class BaseVaultCard extends LitElement {
   static override styles = dashboardCardStyles;
@@ -123,8 +125,12 @@ export abstract class BaseVaultCard extends LitElement {
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     window.clearInterval(this._timer);
-    window.clearTimeout(this._refetchTimer);
-    this._refetchTimer = undefined;
+    if (this._refetchTimer !== undefined) {
+      // A retry was pending: load again when the card is shown again.
+      window.clearTimeout(this._refetchTimer);
+      this._refetchTimer = undefined;
+      this._loadingFor = undefined;
+    }
   }
 
   /**
@@ -137,6 +143,8 @@ export abstract class BaseVaultCard extends LitElement {
     const old = changed.get("hass") as HomeAssistant | undefined;
     const hass = this.hass;
     if (!old || !hass) return true;
+    // Nothing loaded yet, or the last request failed: every update is a chance to retry.
+    if (!this.model) return true;
     if (old.locale !== hass.locale || old.language !== hass.language || old.devices !== hass.devices) return true;
     if (old.entities !== hass.entities) return true;
     for (const entityId of this._tracked) {
@@ -148,31 +156,35 @@ export abstract class BaseVaultCard extends LitElement {
   protected override willUpdate(changed: PropertyValues<this>): void {
     super.willUpdate(changed);
     this.toggleAttribute("embedded", Boolean(this.config.embedded));
-    const stale = this._entries !== undefined && this._entries.length === 0 && !this._refetchTimer;
-    if (stale) {
-      // No Vault server yet: check again shortly, in case an entry is still setting up.
-      this._refetchTimer = window.setTimeout(() => {
-        this._refetchTimer = undefined;
-        this._loadingFor = undefined;
-        this.requestUpdate();
-      }, 30_000);
-    }
     if (this.hass && this._loadingFor !== this.hass.entities) {
       this._loadingFor = this.hass.entities;
       loadEntityMap(this.hass).then(
         (entries) => {
           this._entries = entries;
           this._error = undefined;
+          // No Vault server yet: an entry may still be setting up, so look again later.
+          if (entries.length === 0) this.scheduleRetry();
         },
         (err: unknown) => {
-          this._loadingFor = undefined;
           this._error = err instanceof Error ? err.message : String((err as { message?: string })?.message ?? err);
+          // Don't retry on every state update while the request fails; a registry change retries at once.
+          this.scheduleRetry();
         }
       );
     }
     const entry = this._entries ? this.selectedEntry(this._entries) : undefined;
     this.model = entry && this.hass ? buildModel(this.hass.states, entry) : undefined;
     this._tracked = new Set(entry ? trackedEntityIds(entry) : []);
+  }
+
+  /** Ask for the entity map again after a while, once. */
+  private scheduleRetry(): void {
+    if (this._refetchTimer) return;
+    this._refetchTimer = window.setTimeout(() => {
+      this._refetchTimer = undefined;
+      this._loadingFor = undefined;
+      this.requestUpdate();
+    }, RETRY_AFTER_MS);
   }
 
   private selectedEntry(entries: EntryMap[]): EntryMap | undefined {

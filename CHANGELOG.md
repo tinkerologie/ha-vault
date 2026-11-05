@@ -15,6 +15,7 @@ The changelog uses date sections in `YYYY.MM.DD` format.
 
 ### Changed
 
+- Tests cover the test harness scripts (which `pytest-homeassistant` to install and when `script/test` reinstalls Home Assistant) and the cards' entity-map cache. [#107](https://github.com/tinkerologie/ha-vault/issues/107)
 - Vault no longer creates repair issues for open anomalies or unhealthy storage destinations, and its "confirm to dismiss" repair flow is removed. Home Assistant reserves Repairs for problems the user can fix there; anomalies and storage health are still reported by the open anomalies sensor, each job's Problem binary sensor, the storage health sensors and the dashboard cards.
 - The all-in-one card is now a compact summary: one status, what needs attention first, open anomalies, progress only while something runs, and the last and next backup, with a link to the Vault UI. [#98](https://github.com/tinkerologie/ha-vault/issues/98)
 - Cards use Home Assistant's semantic colour tokens and follow the user's theme, including a custom primary colour, in light and dark mode; all card text meets 4.5:1 contrast. [#99](https://github.com/tinkerologie/ha-vault/issues/99)
@@ -36,6 +37,7 @@ The changelog uses date sections in `YYYY.MM.DD` format.
 
 ### Fixed
 
+- A dashboard card whose entity lookup failed stayed on the error until the entity registry changed. It now retries after 30 seconds or at once when the registry changes, never on every state update, and a card removed while waiting to retry loads again when it's shown. [#107](https://github.com/tinkerologie/ha-vault/issues/107)
 - Dashboard cards no longer report good news when something is wrong: one tested status model drives every card, failed jobs show as failed, and unavailable data shows as unknown instead of healthy, covered or running. The made-up 0-100 health score is replaced by a plain status with its reasons. [#94](https://github.com/tinkerologie/ha-vault/issues/94)
 - Protected and 3-2-1 no longer overstate coverage: Protected counts items in restore points out of every item Vault can see, and 3-2-1 checks the destinations jobs actually back up to, shows unmet rules as not met, says "Likely met" rather than "Met", and says what it can't verify. A job whose status is unavailable also keeps the server from reading healthy. [#95](https://github.com/tinkerologie/ha-vault/issues/95)
 - Next Run shows the scheduled time instead of the first job found, job counts agree across cards, jobs show whether they're enabled, Recent Activity is newest first with each run's real outcome, counts are pluralized, and Storage only shows the selected server's destinations. [#96](https://github.com/tinkerologie/ha-vault/issues/96)
