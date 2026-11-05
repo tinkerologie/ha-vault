@@ -15,6 +15,7 @@ The changelog uses date sections in `YYYY.MM.DD` format.
 
 ### Changed
 
+- Vault no longer creates repair issues for open anomalies or unhealthy storage destinations, and its "confirm to dismiss" repair flow is removed. Home Assistant reserves Repairs for problems the user can fix there; anomalies and storage health are still reported by the open anomalies sensor, each job's Problem binary sensor, the storage health sensors and the dashboard cards.
 - The all-in-one card is now a compact summary: one status, what needs attention first, open anomalies, progress only while something runs, and the last and next backup, with a link to the Vault UI. [#98](https://github.com/tinkerologie/ha-vault/issues/98)
 - Cards use Home Assistant's semantic colour tokens and follow the user's theme, including a custom primary colour, in light and dark mode; all card text meets 4.5:1 contrast. [#99](https://github.com/tinkerologie/ha-vault/issues/99)
 - Card actions: Run backup asks for confirmation in Home Assistant's dialog and shows failures in the card, Restore is now "Open in Vault", entity-backed values open more-info, and buttons have comfortable touch targets. [#100](https://github.com/tinkerologie/ha-vault/issues/100)

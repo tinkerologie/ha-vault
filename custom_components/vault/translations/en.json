@@ -381,15 +381,5 @@
     "entry_not_loaded": {
       "message": "Vault config entry {title} is not loaded."
     }
-  },
-  "issues": {
-    "storage_unhealthy": {
-      "title": "Vault storage destination unhealthy",
-      "description": "The Vault storage destination {name} is reporting an unhealthy state: {error}. Backups targeting this destination may fail. Check the storage configuration and connectivity in the Vault UI."
-    },
-    "anomaly": {
-      "title": "Vault anomaly detected",
-      "description": "Vault detected an anomaly for {scope}: {summary}. Review the anomaly in the Vault UI and acknowledge or resolve it."
-    }
   }
 }

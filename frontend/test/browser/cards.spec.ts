@@ -583,3 +583,33 @@ test("a card that found no Vault server looks again, for an entry that finishes 
   await page.clock.runFor(31_000);
   await expect(card(page, "vault-health-card")).toContainText("Healthy");
 });
+
+test.describe("action fallbacks", () => {
+  test("without a run button entity, Run backup calls vault.run_backup with the job id", async ({ page }) => {
+    await render(page, "healthy", { tags: ["vault-jobs-card"] });
+    await page.evaluate(async () => {
+      const el = document.getElementById("vault-jobs-card") as HTMLElement & { _entries: { jobs: { entities: Record<string, string> }[] }[]; requestUpdate: () => void; updateComplete: Promise<unknown> };
+      for (const job of el._entries[0]!.jobs) delete job.entities.run_backup;
+      el._entries = [...el._entries];
+      await el.updateComplete;
+    });
+    const row = card(page, "vault-jobs-card").locator("li", { hasText: "Daily Containers Backup" }).first();
+    await row.getByRole("button", { name: "Run Daily Containers Backup now" }).click();
+    await row.getByRole("button", { name: "Run backup", exact: true }).click();
+    await expect(row.getByRole("button", { name: "Started" })).toBeVisible();
+    const services = await page.evaluate(() => (window as unknown as Win).calls.filter((c) => c.type === "service"));
+    expect(services).toEqual([{ type: "service", domain: "vault", service: "run_backup", data: { job_id: 1 } }]);
+  });
+
+  test("when the card helpers fail to load, Run backup asks inline", async ({ page }) => {
+    await render(page, "healthy", { tags: ["vault-jobs-card"] });
+    await page.evaluate(() => {
+      (window as unknown as Win).loadCardHelpers = async () => {
+        throw new Error("helpers unavailable");
+      };
+    });
+    const row = card(page, "vault-jobs-card").locator("li", { hasText: "Daily Containers Backup" }).first();
+    await row.getByRole("button", { name: "Run Daily Containers Backup now" }).click();
+    await expect(row.getByRole("group")).toContainText("may stop containers or VMs");
+  });
+});

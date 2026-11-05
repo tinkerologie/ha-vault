@@ -462,3 +462,77 @@ async def test_disabled_category_discovery_not_required(
     # Containers plex (protected), sonarr (pending), radarr, and the flash folder.
     assert _state(hass, mock_config_entry, "protected_items").state == "1"
     assert _state(hass, mock_config_entry, "unprotected_items").state == "3"
+
+
+async def test_client_coverage_and_discovery_parsing() -> None:
+    """The client parses the summary, accepts bare-list discovery, and rejects unknown kinds."""
+    import pytest  # noqa: PLC0415
+
+    client = VaultApiClient.__new__(VaultApiClient)
+    summary = {"protected_items": 2, "protected_keys": ["vm:a", "container:b"], "pending_keys": [], "extra": 1}
+    with patch.object(client, "_request", AsyncMock(return_value=summary)):
+        parsed = await client.async_get_coverage_summary()
+    assert (parsed.protected_items, parsed.protected_keys) == (2, ["vm:a", "container:b"])
+
+    with patch.object(client, "_request", AsyncMock(return_value=[{"name": "a", "type": "vm"}])):
+        bare = await client.async_discover("vms")
+    assert bare.available is True
+    assert [item.key for item in bare.items] == ["vm:a"]
+
+    with pytest.raises(ValueError, match="Unknown discovery kind"):
+        await client.async_discover("plugins")
+
+
+async def test_coverage_is_cached_and_kept_when_the_summary_fails(
+    hass: HomeAssistant, mock_setup_entry: MockConfigEntry, mock_api_client: MagicMock
+) -> None:
+    """Coverage is fetched at most every few minutes, and a later failure keeps the last value."""
+    coordinator = mock_setup_entry.runtime_data.coordinator
+    assert mock_api_client.async_get_coverage_summary.await_count == 1
+
+    await coordinator.async_refresh()
+    assert mock_api_client.async_get_coverage_summary.await_count == 1  # cached
+
+    coordinator._coverage_fetched_at = None  # noqa: SLF001 - force the next fetch
+    mock_api_client.async_get_coverage_summary.side_effect = VaultApiError("500")
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+    assert coordinator.data.coverage is not None
+    assert coordinator.data.coverage.protected == 2
+    assert _state(hass, mock_setup_entry, "protected_items").state == "2"
+
+
+async def test_next_runs_ignore_unexpected_payloads(
+    hass: HomeAssistant, mock_setup_entry: MockConfigEntry, mock_api_client: MagicMock
+) -> None:
+    """A next-runs payload that isn't a mapping gives no next runs instead of failing the update."""
+    coordinator = mock_setup_entry.runtime_data.coordinator
+    mock_api_client.async_get_next_runs = AsyncMock(return_value=["2026-11-06 02:00:00"])
+    await coordinator.async_refresh()
+    assert coordinator.last_update_success
+    assert coordinator.data.next_runs == {}
+
+
+async def test_failed_restore_and_running_attributes(
+    hass: HomeAssistant, mock_setup_entry: MockConfigEntry, mock_websocket: MagicMock, mock_vault_data: VaultApiData
+) -> None:
+    """A failed restore fires restore_failed; the running sensor says which kind of run it is."""
+    from pytest_homeassistant.common import async_capture_events  # noqa: PLC0415
+
+    from custom_components.vault.api.models import WebSocketEvent  # noqa: PLC0415
+    from custom_components.vault.binary_sensor import _job_running_attributes  # noqa: PLC0415
+
+    failed = async_capture_events(hass, "vault_restore_failed")
+    for listener in [call.args[0] for call in mock_websocket.register_listener.call_args_list]:
+        listener(WebSocketEvent(type="job_run_completed", job_id=1, run_type="restore", status="failed"))
+    await hass.async_block_till_done()
+    assert len(failed) == 1
+    entity_id = er.async_get(hass).async_get_entity_id(
+        "event", "vault", f"{mock_setup_entry.entry_id}_job_1_last_event"
+    )
+    assert hass.states.get(entity_id).attributes["event_type"] == "restore_failed"
+
+    mock_vault_data.job_runs[1] = [JobRun(id=9, job_id=1, status="running", run_type="restore")]
+    assert _job_running_attributes(mock_vault_data, 1) == {"run_type": "restore"}
+    mock_vault_data.job_runs[1] = []
+    assert _job_running_attributes(mock_vault_data, 1) is None

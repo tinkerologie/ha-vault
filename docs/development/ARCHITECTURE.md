@@ -15,7 +15,6 @@ custom_components/vault/
 ├── diagnostics.py           # Diagnostics payload with redaction
 ├── entity.py                # Shared VaultEntity base class
 ├── manifest.json            # Integration metadata
-├── repairs.py               # Repairs flow scaffolding
 ├── sensor.py                # Global/per-job/per-storage sensors
 ├── services.yaml            # Service definitions (run_backup/restore/test_storage)
 ├── api/

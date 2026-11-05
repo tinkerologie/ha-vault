@@ -11,17 +11,15 @@ from pydantic import ValidationError
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.exceptions import ConfigEntryAuthFailed
-from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
 from .api import VaultApiClient, VaultApiError, VaultAuthenticationError, VaultConnectionError, VaultWebSocketClient
-from .api.models import Anomaly, Coverage, Discovery, HealthSummary, Settings, StorageDestination, VaultApiData
+from .api.models import Coverage, Discovery, HealthSummary, Settings, VaultApiData
 from .const import (
     ACTIVE_UPDATE_INTERVAL_SECONDS,
     COVERAGE_UPDATE_INTERVAL_SECONDS,
     DEFAULT_UPDATE_INTERVAL_SECONDS,
-    DOMAIN,
     LOGGER,
 )
 from .runs import HISTORY_LIMIT
@@ -135,8 +133,6 @@ class VaultDataUpdateCoordinator(DataUpdateCoordinator[VaultApiData]):
             update_interval=timedelta(seconds=DEFAULT_UPDATE_INTERVAL_SECONDS),
         )
         self.client = client
-        self._storage_issue_ids: set[str] = set()
-        self._anomaly_issue_ids: set[str] = set()
         self._coverage: Coverage | None = None
         self._coverage_fetched_at: datetime | None = None
 
@@ -219,60 +215,6 @@ class VaultDataUpdateCoordinator(DataUpdateCoordinator[VaultApiData]):
         self._coverage_fetched_at = now
         return self._coverage
 
-    def _update_storage_repair_issues(self, storage: list[StorageDestination]) -> None:
-        """Create or clear repair issues for unhealthy storage destinations."""
-        current_issue_ids: set[str] = set()
-        for dest in storage:
-            issue_id = f"storage_unhealthy_{dest.id}"
-            status = (dest.last_health_check_status or "").lower()
-            unhealthy = (status and status != "ok") or dest.breaker_state == "open"
-            if unhealthy:
-                current_issue_ids.add(issue_id)
-                ir.async_create_issue(
-                    self.hass,
-                    DOMAIN,
-                    issue_id,
-                    is_fixable=False,
-                    severity=ir.IssueSeverity.WARNING,
-                    translation_key="storage_unhealthy",
-                    translation_placeholders={
-                        "name": dest.name,
-                        "error": dest.last_health_check_error or dest.breaker_state or status or "unknown",
-                    },
-                )
-        stale_issue_ids = self._storage_issue_ids - current_issue_ids
-        for issue_id in stale_issue_ids:
-            ir.async_delete_issue(self.hass, DOMAIN, issue_id)
-        self._storage_issue_ids = current_issue_ids
-
-    def _update_anomaly_repair_issues(self, anomalies: list[Anomaly], job_names: dict[int, str]) -> None:
-        """Create or clear repair issues for open anomalies (Vault alerts)."""
-        current_issue_ids: set[str] = set()
-        for anomaly in anomalies:
-            issue_id = f"anomaly_{anomaly.id}"
-            current_issue_ids.add(issue_id)
-            if anomaly.scope_kind == "job":
-                scope = job_names.get(anomaly.scope_id, f"job {anomaly.scope_id}")
-            else:
-                scope = f"{anomaly.scope_kind} {anomaly.scope_id}".strip()
-            severity = ir.IssueSeverity.ERROR if anomaly.severity == "critical" else ir.IssueSeverity.WARNING
-            ir.async_create_issue(
-                self.hass,
-                DOMAIN,
-                issue_id,
-                is_fixable=False,
-                severity=severity,
-                translation_key="anomaly",
-                translation_placeholders={
-                    "scope": scope,
-                    "summary": anomaly.summary or anomaly.metric or anomaly.detector,
-                },
-            )
-        stale_issue_ids = self._anomaly_issue_ids - current_issue_ids
-        for issue_id in stale_issue_ids:
-            ir.async_delete_issue(self.hass, DOMAIN, issue_id)
-        self._anomaly_issue_ids = current_issue_ids
-
     async def _async_update_data(self) -> VaultApiData:
         """Fetch data from all Vault API endpoints.
 
@@ -325,9 +267,6 @@ class VaultDataUpdateCoordinator(DataUpdateCoordinator[VaultApiData]):
             next_runs=next_runs,
             coverage=coverage,
         )
-
-        self._update_storage_repair_issues(storage)
-        self._update_anomaly_repair_issues(anomalies, {job.id: job.name for job in jobs})
 
         # Adjust polling rate: faster when a job is running
         has_running = any(runs and self._job_run_status_text(runs[0].status) == "running" for runs in job_runs.values())
