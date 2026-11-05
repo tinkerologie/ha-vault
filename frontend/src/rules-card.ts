@@ -1,119 +1,84 @@
 import { html, type TemplateResult } from "lit";
 import { BaseVaultCard } from "./dashboard-cards-base";
-import { VaultCardEditor } from "./dashboard-cards-editor";
-import { RULES_CARD_TAG, RULES_EDITOR_TAG } from "./config";
-import {
-  iconTemplate,
-  mdiCheckCircle,
-  mdiFileDocumentOutline,
-} from "./icons";
+import { RULES_CARD_TAG } from "./config";
+import { mdiFileDocumentCheckOutline } from "./icons";
+import type { Level, VaultModel } from "./model";
 import { registerDashboardCard } from "./register-dashboard-card";
 
+interface Criterion {
+  label: string;
+  detail: string;
+  met: boolean | null;
+}
+
+/**
+ * The 3-2-1 rule, checked against destinations that enabled jobs have
+ * actually backed up to, not every configured destination. Vault can't tell
+ * where a destination is, so the card says what it counts.
+ */
 export class VaultRulesCard extends BaseVaultCard {
-  static override editorTag = RULES_EDITOR_TAG;
+  protected titleKey = "title.rules" as const;
+  protected titleIcon = mdiFileDocumentCheckOutline;
 
   override getGridOptions() {
-    return { columns: 6, rows: 2, min_columns: 3, min_rows: 2 };
+    return { columns: 12, rows: "auto" as const, min_columns: 6 };
   }
 
-  protected override render(): TemplateResult {
-    // Inspect real storage destinations and their types
-    const storageEntities = this.getEntities("storage");
-    const storageTypeSensors = storageEntities.filter((s) => s.entity_id.endsWith("_type"));
+  override getCardSize(): number {
+    return 3;
+  }
 
-    // Extract unique storage destination tokens, excluding metric sensors
-    const destTokens = new Set<string>();
-    for (const s of storageEntities) {
-      const id = s.entity_id;
-      if (
-        id.endsWith("_total_space") ||
-        id.endsWith("_used_space") ||
-        id.endsWith("_free_space") ||
-        id.endsWith("_health") ||
-        id.endsWith("_status")
-      ) {
-        continue;
-      }
-      const match = id.match(/storage_([a-z0-9_]+?)(?:_type|_path|$)/);
-      if (match?.[1]) {
-        destTokens.add(match[1]);
-      } else {
-        destTokens.add(id);
-      }
-    }
+  protected renderCard(model: VaultModel): TemplateResult {
+    const { destinations, mediaTypes, remote } = model.rules;
+    const criteria: Criterion[] = [
+      {
+        label: this.t("rules.copies"),
+        detail: destinations === null ? this.t("rules.unknown") : this.t("rules.copies_detail", { count: destinations }),
+        met: destinations === null ? null : destinations >= 3,
+      },
+      {
+        label: this.t("rules.media"),
+        detail: mediaTypes === null ? this.t("rules.unknown") : this.t("rules.media_detail", { count: mediaTypes }),
+        met: mediaTypes === null ? null : mediaTypes >= 2,
+      },
+      {
+        label: this.t("rules.offsite"),
+        detail: remote === null ? this.t("rules.unknown") : remote > 0 ? this.t("rules.offsite_detail_yes") : this.t("rules.offsite_detail_no"),
+        met: remote === null ? null : remote > 0,
+      },
+    ];
+    const anyUnknown = criteria.some((c) => c.met === null);
+    const allMet = criteria.every((c) => c.met === true);
+    const level: Level = anyUnknown ? "unknown" : allMet ? "ok" : "warning";
+    // Destinations meeting the rule doesn't prove every item has three copies,
+    // or that a remote destination is off site, so never claim more than "likely".
+    const badge = anyUnknown ? this.t("rules.unknown") : allMet ? this.t("rules.likely_met") : this.t("rules.not_met");
+    const levelOf = (met: boolean | null): Level => (met === null ? "unknown" : met ? "ok" : "failed");
 
-    const storageTypes = storageTypeSensors
-      .map((s) => String(s.state || "").toLowerCase())
-      .filter((t) => t && t !== "unavailable" && t !== "unknown");
-
-    const hasOffsite = storageTypes.some((t) => ["s3", "sftp", "webdav", "smb", "nfs"].includes(t));
-    const uniqueTypesCount = new Set(storageTypes).size;
-    const hasMultipleMedia = uniqueTypesCount >= 2;
-    const destCount = destTokens.size || storageTypeSensors.length;
-    const hasThreeCopies = destCount >= 3;
-
-    const isCompliant = hasThreeCopies && hasMultipleMedia && hasOffsite;
-
-    return html`
-      <ha-card>
-        <div class="header">
-          <div class="header-main">
-            <div class="header-icon">
-              ${iconTemplate(mdiFileDocumentOutline, 18)}
+    return html`<ha-card>
+      ${this.renderHeader(this.entityLink(model.entry.entities.destinations_in_use, this.levelBadge(level, badge)))}
+      <ul class="grid-3 list">
+        ${criteria.map(
+          (c) => html`<li class="row">
+            <span class="status-icon lvl-${levelOf(c.met)}" style="width: 32px; height: 32px;">${this.levelIcon(levelOf(c.met), 18)}</span>
+            <div class="row-main">
+              <span class="label">${c.label}</span>
+              <span class="sub">
+                <span class="visually-hidden">${c.met === null ? this.t("rules.unknown") : c.met ? this.t("rules.met") : this.t("rules.not_met")}:</span>
+                ${c.detail}
+              </span>
             </div>
-            <div class="header-titles">
-              <span class="header-tag">3-2-1 Backup Rule</span>
-              ${this.config.title ? html`<span class="header-title">${this.config.title}</span>` : ""}
-            </div>
-          </div>
-          <div class="badge ${isCompliant ? "success" : "neutral"}">
-            ${isCompliant ? "Compliant" : "3-2-1 Status"}
-          </div>
-        </div>
-
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 6px;">
-          <div style="background: var(--vault-surface); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--vault-border); display: flex; align-items: center; gap: 8px;">
-            <div style="color: ${hasThreeCopies ? "var(--vault-success)" : "var(--vault-standby)"};">
-              ${iconTemplate(mdiCheckCircle, 16)}
-            </div>
-            <div style="display: flex; flex-direction: column;">
-              <span style="font-size: 0.75rem; font-weight: 700; color: var(--vault-text);">3 Copies</span>
-              <span style="font-size: 0.7rem; color: var(--vault-subtext);">${hasThreeCopies ? "Target Verified" : `${destCount} Configured`}</span>
-            </div>
-          </div>
-
-          <div style="background: var(--vault-surface); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--vault-border); display: flex; align-items: center; gap: 8px;">
-            <div style="color: ${hasMultipleMedia ? "var(--vault-success)" : "var(--vault-standby)"};">
-              ${iconTemplate(mdiCheckCircle, 16)}
-            </div>
-            <div style="display: flex; flex-direction: column;">
-              <span style="font-size: 0.75rem; font-weight: 700; color: var(--vault-text);">2 Media</span>
-              <span style="font-size: 0.7rem; color: var(--vault-subtext);">${hasMultipleMedia ? `${uniqueTypesCount} Media Types` : "Single Media"}</span>
-            </div>
-          </div>
-
-          <div style="background: var(--vault-surface); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--vault-border); display: flex; align-items: center; gap: 8px;">
-            <div style="color: ${hasOffsite ? "var(--vault-success)" : "var(--vault-standby)"};">
-              ${iconTemplate(mdiCheckCircle, 16)}
-            </div>
-            <div style="display: flex; flex-direction: column;">
-              <span style="font-size: 0.75rem; font-weight: 700; color: var(--vault-text);">1 Offsite</span>
-              <span style="font-size: 0.7rem; color: var(--vault-subtext);">${hasOffsite ? "Remote Target" : "Local Only"}</span>
-            </div>
-          </div>
-        </div>
-      </ha-card>
-    `;
+          </li>`
+        )}
+      </ul>
+      <span class="sub">${this.t("rules.footnote")}</span>
+    </ha-card>`;
   }
 }
 
-export class VaultRulesCardEditor extends VaultCardEditor {}
-
 registerDashboardCard({
   tag: RULES_CARD_TAG,
-  editorTag: RULES_EDITOR_TAG,
   card: VaultRulesCard,
-  editor: VaultRulesCardEditor,
-  name: "Vault 3-2-1 Rule",
-  description: "Display 3-2-1 backup compliance checklist",
+  nameKey: "card.rules.name",
+  descriptionKey: "card.rules.description",
 });

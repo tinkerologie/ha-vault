@@ -1,97 +1,81 @@
-import { html, type TemplateResult } from "lit";
+import { html, nothing, type TemplateResult } from "lit";
 import { BaseVaultCard } from "./dashboard-cards-base";
-import { VaultCardEditor } from "./dashboard-cards-editor";
-import { ANOMALIES_CARD_TAG, ANOMALIES_EDITOR_TAG } from "./config";
-import {
-  iconTemplate,
-  mdiAlertOutline,
-  mdiShieldCheck,
-} from "./icons";
+import { ANOMALIES_CARD_TAG } from "./config";
+import type { HomeAssistant } from "./ha-types";
+import { mdiShieldAlertOutline } from "./icons";
+import type { Anomaly, VaultModel } from "./model";
 import { registerDashboardCard } from "./register-dashboard-card";
 
-export class VaultAnomaliesCard extends BaseVaultCard {
-  static override editorTag = ANOMALIES_EDITOR_TAG;
+const DEFAULT_MAX_ITEMS = 5;
 
-  override getGridOptions() {
-    return { columns: 6, rows: 3, min_columns: 3, min_rows: 2 };
+/** A translated severity; unknown severities are shown as Vault sends them. */
+function severityLabel(card: BaseVaultCard, severity: string): string {
+  const key = `anomalies.severity.${severity}`;
+  const label = card.t(key);
+  return label === key ? severity : label;
+}
+
+/** The open anomalies list, shared with the summary card. */
+export function anomaliesList(card: BaseVaultCard, anomalies: Anomaly[], maxItems: number): TemplateResult {
+  const shown = anomalies.slice(0, Math.max(1, maxItems));
+  const hidden = anomalies.length - shown.length;
+  return html`<ul class="list">
+    ${shown.map(
+      (a) => html`<li class="row">
+        <div class="row-main">
+          <span class="row-title">
+            <span class="label">${a.summary || a.detector}</span>
+            <span class="badge lvl-${a.severity === "critical" ? "failed" : "warning"}">${severityLabel(card, a.severity)}</span>
+          </span>
+          <span class="sub">${a.job ? card.t("anomalies.scope", { job: a.job }) : card.t("anomalies.system")}</span>
+        </div>
+      </li>`
+    )}
+    ${hidden > 0 ? html`<li class="sub">${card.t("common.more", { count: hidden })}</li>` : nothing}
+  </ul>`;
+}
+
+export class VaultAnomaliesCard extends BaseVaultCard {
+  protected titleKey = "title.anomalies" as const;
+  protected titleIcon = mdiShieldAlertOutline;
+
+  protected static override extraFormSchema() {
+    return [{ name: "max_items", selector: { number: { min: 1, max: 20, mode: "box" } } }];
   }
 
-  protected override render(): TemplateResult {
-    const anomaliesEnt = this.getEntity("open_anomalies");
-    const count = Number(anomaliesEnt?.state ?? 0);
-    const anomaliesList = (anomaliesEnt?.attributes?.anomalies as Array<{
-      detector?: string;
-      severity?: string;
-      summary?: string;
-      job?: string;
-    }>) || [];
+  override getCardSize(): number {
+    return 2 + Math.min(this.model?.anomalies.length ?? 0, this.maxItems);
+  }
 
-    return html`
-      <ha-card>
-        <div class="header">
-          <div class="header-main">
-            <div class="header-icon ${count > 0 ? "error" : "success"}">
-              ${iconTemplate(count > 0 ? mdiAlertOutline : mdiShieldCheck, 18)}
-            </div>
-            <div class="header-titles">
-              <span class="header-tag">Anomalies & Attention</span>
-              ${this.config.title ? html`<span class="header-title">${this.config.title}</span>` : ""}
-            </div>
-          </div>
-          <div class="badge ${count > 0 ? "warning" : "success"}">
-            ${count === 0 ? "Clear" : `${count} Issue${count === 1 ? "" : "s"}`}
-          </div>
-        </div>
+  override getGridOptions() {
+    return { columns: 12, rows: "auto" as const, min_columns: 6 };
+  }
 
-        ${count === 0
-          ? html`
-              <div style="display: flex; align-items: center; gap: 12px; padding: 12px 4px;">
-                <div style="color: var(--vault-success);">
-                  ${iconTemplate(mdiShieldCheck, 24)}
-                </div>
-                <div style="display: flex; flex-direction: column;">
-                  <span style="font-size: 0.95rem; font-weight: 600; color: var(--vault-text);">
-                    No open anomalies
-                  </span>
-                  <span style="font-size: 0.78rem; color: var(--vault-subtext);">
-                    All backup monitors and detectors report normal operation
-                  </span>
-                </div>
-              </div>
-            `
-          : html`
-              <div class="item-list">
-                ${anomaliesList.map(
-                  (a) => html`
-                    <div class="card-row">
-                      <div class="card-row-main">
-                        <div class="card-row-title-bar">
-                          <span class="card-row-title">${a.summary || a.detector || "Anomaly"}</span>
-                          <span class="badge ${a.severity === "critical" ? "error" : "warning"}">
-                            ${a.severity || "warning"}
-                          </span>
-                        </div>
-                        <div class="card-row-meta">
-                          <span>${a.job ? `Scope: ${a.job}` : "System detector"}</span>
-                        </div>
-                      </div>
-                    </div>
-                  `
-                )}
-              </div>
-            `}
-      </ha-card>
-    `;
+  private get maxItems(): number {
+    const value = Number(this.config.max_items);
+    return Number.isInteger(value) && value > 0 ? value : DEFAULT_MAX_ITEMS;
+  }
+
+  protected renderCard(model: VaultModel): TemplateResult {
+    const count = model.anomalyCount;
+    const level = count === null ? "unknown" : count === 0 ? "ok" : model.anomalies.some((a) => a.severity === "critical") ? "failed" : "warning";
+    const badge = count === null ? this.t("level.unknown") : count === 0 ? this.t("anomalies.none") : this.t("attention.anomalies", { count });
+    return html`<ha-card>
+      ${this.renderHeader(this.entityLink(model.entry.entities.open_anomalies, this.levelBadge(level, badge)))}
+      ${count ? anomaliesList(this, model.anomalies, this.maxItems) : nothing}
+    </ha-card>`;
   }
 }
 
-export class VaultAnomaliesCardEditor extends VaultCardEditor {}
-
 registerDashboardCard({
   tag: ANOMALIES_CARD_TAG,
-  editorTag: ANOMALIES_EDITOR_TAG,
   card: VaultAnomaliesCard,
-  editor: VaultAnomaliesCardEditor,
-  name: "Vault Anomalies",
-  description: "Display backup anomalies and attention alerts",
+  nameKey: "card.anomalies.name",
+  descriptionKey: "card.anomalies.description",
+  // Offer this card in the picker for a Vault server's open anomalies sensor.
+  getEntitySuggestion: (hass: HomeAssistant, entityId: string) => {
+    const entry = hass.entities?.[entityId];
+    if (entry?.platform !== "vault" || entry.translation_key !== "open_anomalies") return null;
+    return { config: { type: `custom:${ANOMALIES_CARD_TAG}`, ...(entry.device_id ? { server: entry.device_id } : {}) } };
+  },
 });

@@ -5,7 +5,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 
 from custom_components.vault import _get_entry_from_call, async_remove_config_entry_device, async_setup
 from custom_components.vault.api.exceptions import VaultApiError, VaultConnectionError

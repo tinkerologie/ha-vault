@@ -17,6 +17,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .api.models import BackupJob, VaultApiData
 from .coordinator import VaultConfigEntry, VaultDataUpdateCoordinator
 from .entity import VaultEntity, VaultJobEntity, async_prune_orphan_entities, async_remove_stale_entities
+from .runs import active_run, latest_finished_backup_run, run_type, status_text
 
 PARALLEL_UPDATES = 0
 
@@ -70,21 +71,23 @@ _JOB_BINARY_SENSOR_LABELS: dict[str, str] = {
 
 
 def _is_job_running(data: VaultApiData, job_id: int) -> bool:
-    """Return True if the most recent run for this job is running."""
-    runs = data.job_runs.get(job_id, [])
-    if not runs:
-        return False
-    status_text = str(getattr(runs[0].status, "value", runs[0].status)).lower()
-    return status_text == "running"
+    """Return True while the job is running a backup or a restore."""
+    return active_run(data, job_id) is not None
+
+
+def _job_running_attributes(data: VaultApiData, job_id: int) -> dict[str, object] | None:
+    """Say whether the running run is a backup or a restore."""
+    run = active_run(data, job_id)
+    return {"run_type": run_type(run)} if run else None
 
 
 def _is_job_last_success(data: VaultApiData, job_id: int) -> bool:
-    """Return True if the most recent run for this job completed successfully."""
-    runs = data.job_runs.get(job_id, [])
-    if not runs:
-        return False
-    status_text = str(getattr(runs[0].status, "value", runs[0].status)).lower()
-    return status_text == "completed"
+    """Return True if the job's last finished backup completed successfully.
+
+    Restores and a backup still in progress don't change it.
+    """
+    run = latest_finished_backup_run(data, job_id)
+    return run is not None and status_text(run.status) == "completed"
 
 
 def _job_anomalies(data: VaultApiData, job_id: int) -> list:
@@ -122,6 +125,7 @@ PER_JOB_BINARY_SENSOR_TEMPLATES: tuple[VaultJobBinarySensorEntityDescription, ..
         translation_key="job_running",
         device_class=BinarySensorDeviceClass.RUNNING,
         is_on_fn=_is_job_running,
+        attributes_fn=_job_running_attributes,
     ),
     VaultJobBinarySensorEntityDescription(
         key="last_success",

@@ -78,14 +78,15 @@ Before a pull request can be merged, it must satisfy all automated quality gates
 
 ### Prerequisites and Setup
 
-- Python 3.12 or later
-- Virtual environment with dependencies installed (`script/setup/bootstrap` or `pip install -e ".[test,dev]"`)
+- Python 3.14.2 or later (Home Assistant 2026.11 requires it)
+- Virtual environment with dependencies installed (`script/setup/bootstrap`). The tests run on Home Assistant's official `pytest-homeassistant` plugin, which must match Home Assistant exactly; `script/setup/bootstrap` and `script/test` install the Home Assistant release pinned in `script/.lib/ha-test-harness.sh` (currently 2026.11.0) together with the matching plugin. To install them by hand, first remove the retired plugin and the plugin's earlier name, which supply the same fixtures and share files with it: `uv pip uninstall pytest-homeassistant-custom-component pytest-home-assistant`. Then install: `uv pip install --reinstall-package pytest-homeassistant "homeassistant==2026.11.0" "pytest-homeassistant @ https://github.com/home-assistant/core/archive/refs/tags/2026.11.0.tar.gz#subdirectory=packages/pytest-homeassistant"`. PyPI has no `pytest-homeassistant` 2026.11.0 (it stops at 2026.11.0b6), so the plugin comes from the Core tag; once a matching PyPI release exists, `pytest-homeassistant==<version>` works too. Never install it unpinned: the PyPI project also has unrelated 0.1.x releases.
 - Pre-commit (`pre-commit install`)
 
 ### Validation Commands
 
 ```bash
-# Run tests with pytest and coverage
+# Run tests (installs the pinned Home Assistant and pytest-homeassistant when they differ)
+script/test
 pytest
 pytest --cov=custom_components --cov-report=term-missing
 
@@ -98,6 +99,15 @@ mypy custom_components
 
 # Run all pre-commit hooks across all files
 pre-commit run --all-files
+
+# Import every module and fail on deprecated use reported by Home Assistant
+python3 script/import_smoke.py
+
+# Validate with Hassfest from the pinned Home Assistant Core release
+./script/hassfest --skip-plugins ""
+
+# Build the release zip (reproducible; written to dist/, which Git ignores)
+python3 script/build_release_zip.py
 ```
 
 ---

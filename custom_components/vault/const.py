@@ -16,3 +16,5 @@ CONF_TLS = "tls"
 DEFAULT_PORT = 24085
 DEFAULT_UPDATE_INTERVAL_SECONDS = 60
 ACTIVE_UPDATE_INTERVAL_SECONDS = 10
+# Item coverage needs discovery (Docker, libvirt), so poll it less often.
+COVERAGE_UPDATE_INTERVAL_SECONDS = 300

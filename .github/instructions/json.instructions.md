@@ -31,4 +31,6 @@ JSON schema files are available in `/schemas/json/`:
 - `icons_schema.json` — Validates `icons.json`
 - `hacs_schema.json` — Validates `hacs.json`
 
+`hacs.json` sets `zip_release: true` and `filename: "vault.zip"`, so HACS and the Home Assistant Marketplace install the release asset that `script/build_release_zip.py` builds in `.github/workflows/release.yml`. Keep both keys and the asset name in sync. HACS reads `hacs.json` at the latest release tag, so a change takes effect with the next release.
+
 Consult the relevant schema when editing JSON files to ensure correct structure.

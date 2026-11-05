@@ -181,7 +181,7 @@ As an AI agent, **aim for Silver or Gold Quality Scale** when generating code:
 
 - Validates manifest.json, translations, services.yaml, and integration structure
 - Uses official Home Assistant Core validation scripts locally
-- First run downloads ~27 MB, subsequent runs are fast with `--no-update`
+- First run downloads Home Assistant Core at the pinned revision; later runs reuse it (`--update` re-fetches)
 
 **For comprehensive standards, see:**
 

@@ -2,18 +2,22 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 
 from custom_components.vault.api.models import (
     ActivityEntry,
     Anomaly,
     AuthStatus,
     BackupJob,
+    DiscoveredItem,
+    Discovery,
     EncryptionStatus,
     HealthStatus,
+    HealthSummary,
     JobRun,
     JobRunStatus,
     RestorePoint,
@@ -26,6 +30,8 @@ from custom_components.vault.api.models import (
 from custom_components.vault.const import DOMAIN
 from homeassistant.core import HomeAssistant
 
+from .fixtures.deprecations import HANDLER as DEPRECATION_REPORTS  # noqa: TID251 - test-only helpers
+
 MOCK_HOST = "192.168.1.100"
 MOCK_PORT = 24085
 
@@ -33,6 +39,31 @@ MOCK_PORT = 24085
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:
     """Enable custom integration discovery in all tests."""
+
+
+@pytest.fixture(autouse=True)
+def fail_on_ha_deprecation_reports() -> Generator[None]:
+    """Fail when Home Assistant logs deprecated use by this integration.
+
+    Reports logged while modules were imported surface on the first test.
+    """
+    yield
+    if reports := DEPRECATION_REPORTS.pop_reports():
+        pytest.fail(
+            "Home Assistant reported deprecated use by vault:\n" + "\n".join(reports),
+            pytrace=False,
+        )
+
+
+@pytest.fixture
+def hass_config_dir(hass_tmp_config_dir: str) -> str:
+    """Give every test its own temporary Home Assistant config directory.
+
+    pytest-homeassistant points the config directory at `tests/testing_config`
+    by default, so a test that writes configuration would write into the
+    working tree.
+    """
+    return hass_tmp_config_dir
 
 
 @pytest.fixture
@@ -227,6 +258,32 @@ def mock_api_client(
     client.async_get_activity = AsyncMock(return_value=mock_activity)
     client.async_get_anomalies = AsyncMock(return_value=mock_anomalies)
     client.async_get_auth_status = AsyncMock(return_value=AuthStatus(auth_required=False))
+    # Shapes captured from a Vault 2026.10.04 daemon.
+    client.async_get_next_runs = AsyncMock(return_value={"1": "2026-11-06 02:00:00", "2": "2026-11-08 03:00:00"})
+    client.async_get_coverage_summary = AsyncMock(
+        return_value=HealthSummary(
+            total_items=3,
+            protected_items=2,
+            protected_keys=["container:plex", "vm:Home Assistant"],
+            pending_keys=["container:sonarr"],
+        )
+    )
+    discovery = {
+        "containers": Discovery(
+            available=True,
+            items=[
+                DiscoveredItem(name="plex", type="container"),
+                DiscoveredItem(name="sonarr", type="container"),
+                DiscoveredItem(name="radarr", type="container"),
+            ],
+        ),
+        "vms": Discovery(available=True, items=[DiscoveredItem(name="Home Assistant", type="vm")]),
+        "folders": Discovery(
+            available=True,
+            items=[DiscoveredItem(name="Flash Drive", type="folder", settings={"preset": "flash"})],
+        ),
+    }
+    client.async_discover = AsyncMock(side_effect=lambda kind: discovery[kind])
     return client
 
 

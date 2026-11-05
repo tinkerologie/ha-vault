@@ -112,13 +112,88 @@
         "name": "Runner queue length"
       },
       "runner_current_job_id": {
-        "name": "Runner active job"
+        "name": "Runner active job",
+        "state_attributes": {
+          "run_type": {
+            "name": "Run type",
+            "state": {
+              "backup": "Backup",
+              "restore": "Restore"
+            }
+          },
+          "items_done": {
+            "name": "Items done"
+          },
+          "items_total": {
+            "name": "Items total"
+          }
+        }
       },
       "open_anomalies": {
         "name": "Open anomalies"
       },
+      "next_backup": {
+        "name": "Next backup",
+        "state_attributes": {
+          "job_id": {
+            "name": "Job ID"
+          },
+          "job_name": {
+            "name": "Job"
+          }
+        }
+      },
+      "protected_items": {
+        "name": "Protected items"
+      },
+      "unprotected_items": {
+        "name": "Unprotected items",
+        "state_attributes": {
+          "pending_items": {
+            "name": "Waiting for first backup"
+          },
+          "items": {
+            "name": "Items"
+          }
+        }
+      },
+      "destinations_in_use": {
+        "name": "Destinations in use",
+        "state_attributes": {
+          "media_types": {
+            "name": "Media types"
+          },
+          "remote_destinations": {
+            "name": "Remote destinations"
+          },
+          "destinations": {
+            "name": "Destinations"
+          }
+        }
+      },
       "job_status": {
-        "name": "Status"
+        "name": "Status",
+        "state": {
+          "idle": "Never run",
+          "running": "Running",
+          "restoring": "Restoring",
+          "completed": "Completed",
+          "partial": "Partial",
+          "failed": "Failed",
+          "skipped": "Skipped",
+          "cancelled": "Cancelled"
+        },
+        "state_attributes": {
+          "enabled": {
+            "name": "Enabled"
+          },
+          "schedule": {
+            "name": "Schedule"
+          }
+        }
+      },
+      "job_next_run": {
+        "name": "Next run"
       },
       "job_last_run": {
         "name": "Last run"
@@ -168,7 +243,16 @@
         "name": "Online"
       },
       "job_running": {
-        "name": "Running"
+        "name": "Running",
+        "state_attributes": {
+          "run_type": {
+            "name": "Run type",
+            "state": {
+              "backup": "Backup",
+              "restore": "Restore"
+            }
+          }
+        }
       },
       "job_last_success": {
         "name": "Last run successful"
@@ -191,7 +275,10 @@
               "backup_started": "Backup started",
               "backup_completed": "Backup completed",
               "backup_failed": "Backup failed",
-              "missing_items_detected": "Missing items detected"
+              "missing_items_detected": "Missing items detected",
+              "restore_started": "Restore started",
+              "restore_completed": "Restore completed",
+              "restore_failed": "Restore failed"
             }
           }
         }

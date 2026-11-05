@@ -19,6 +19,8 @@ cd "$SCRIPT_DIR/../.."
 
 # shellcheck source=script/.lib/output.sh
 source "$SCRIPT_DIR/../.lib/output.sh"
+# shellcheck source=script/.lib/ha-test-harness.sh
+source "$SCRIPT_DIR/../.lib/ha-test-harness.sh"
 
 resolve_latest_homeassistant_version() {
     python3 - <<'PY'
@@ -175,7 +177,10 @@ else
     log_info "No runtime dependencies defined (this is normal for blueprints)"
 fi
 
-HA_VERSION_INPUT="${HA_VERSION:-latest}"
+# Default to the Home Assistant release the tests and CI run on, so the test
+# plugin installed below always matches. HA_VERSION=latest picks the newest
+# stable release instead; any other HA_VERSION installs that exact release.
+HA_VERSION_INPUT="${HA_VERSION:-$TEST_HOME_ASSISTANT_VERSION}"
 
 if [[ "$HA_VERSION_INPUT" == "latest" || "$HA_VERSION_INPUT" == "stable" ]]; then
     log_header "Resolving latest stable Home Assistant version"
@@ -219,11 +224,17 @@ curl -fsSL "${HA_CORE_BASE_URL}/requirements_test_pre_commit.txt" -o "/tmp/requi
 curl -fsSL "${HA_CORE_BASE_URL}/requirements_test.txt" -o "/tmp/requirements_test.txt"
 uv pip install --upgrade --constraint "/tmp/homeassistant/package_constraints.txt" --requirement "/tmp/requirements_test.txt"
 
-log_header "Installing Home Assistant ${HA_VERSION} core"
-uv pip install --upgrade "homeassistant==${HA_VERSION}"
-
-# Ensure syrupy matches the version required by pytest-homeassistant-custom-component
-uv pip install "syrupy==6.0.0"
+log_header "Installing Home Assistant ${HA_VERSION} core and pytest-homeassistant"
+# pytest-homeassistant is Home Assistant's own test plugin and must match it
+# exactly; it pins syrupy and the other test libraries itself. A reused
+# environment may still have the retired pytest-homeassistant-custom-component,
+# which supplies the same fixtures and cannot import on Home Assistant 2026.11,
+# or the plugin's earlier pytest-home-assistant name. Both share files with
+# pytest-homeassistant, so remove them and reinstall the plugin.
+uv pip uninstall pytest-homeassistant-custom-component pytest-home-assistant 2>/dev/null || true
+uv pip install --upgrade --reinstall-package pytest-homeassistant \
+    "homeassistant==${HA_VERSION}" \
+    "$(pytest_homeassistant_requirement "$HA_VERSION")"
 
 set +e
 rm -rf /tmp/requirements*.txt /tmp/homeassistant/ || log_warning "Failed to clean up temporary files"

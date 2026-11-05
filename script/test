@@ -28,6 +28,8 @@ cd "$SCRIPT_DIR/.."
 
 # shellcheck source=script/.lib/output.sh
 source "$SCRIPT_DIR/.lib/output.sh"
+# shellcheck source=script/.lib/ha-test-harness.sh
+source "$SCRIPT_DIR/.lib/ha-test-harness.sh"
 
 if [[ -z ${VIRTUAL_ENV:-} ]]; then
     log_header "Activating virtual environment"
@@ -63,10 +65,20 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Check if pytest is available
-if ! python -c "import pytest" 2>/dev/null; then
-    log_info "pytest not found. Installing test dependencies..."
-    uv pip install -e ".[test]"
+# The tests run on the Home Assistant release pinned in script/.lib/ha-test-harness.sh,
+# with the pytest-homeassistant plugin from the same release. Install the pair
+# when the environment has a different Home Assistant or no plugin.
+INSTALLED_HA_VERSION=$(python -c "from homeassistant.const import __version__; print(__version__)" 2>/dev/null || true)
+if [[ "$INSTALLED_HA_VERSION" != "$TEST_HOME_ASSISTANT_VERSION" ]] \
+    || ! python -c "import pytest_homeassistant" 2>/dev/null; then
+    log_info "Installing Home Assistant ${TEST_HOME_ASSISTANT_VERSION} and the matching pytest-homeassistant"
+    # The retired plugin and the plugin's earlier pytest-home-assistant name
+    # supply the same fixtures and share files with pytest-homeassistant, so
+    # remove them and reinstall the plugin to restore its files.
+    uv pip uninstall pytest-homeassistant-custom-component pytest-home-assistant 2>/dev/null || true
+    uv pip install --reinstall-package pytest-homeassistant \
+        "homeassistant==${TEST_HOME_ASSISTANT_VERSION}" \
+        "$(pytest_homeassistant_requirement "$TEST_HOME_ASSISTANT_VERSION")"
 fi
 
 # Ensure cleanup runs even when tests fail (set -e would exit before cleanup)

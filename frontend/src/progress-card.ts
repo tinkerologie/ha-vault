@@ -1,116 +1,79 @@
-import { html, type TemplateResult } from "lit";
+import { html, nothing, type TemplateResult } from "lit";
 import { BaseVaultCard } from "./dashboard-cards-base";
-import { VaultCardEditor } from "./dashboard-cards-editor";
-import { PROGRESS_CARD_TAG, PROGRESS_EDITOR_TAG } from "./config";
-import {
-  iconTemplate,
-  mdiShieldCheck,
-  mdiSync,
-} from "./icons";
+import { PROGRESS_CARD_TAG } from "./config";
+import { mdiSync } from "./icons";
+import { formatPercent } from "./localize/localize";
+import { onlyRestoring, type Job, type VaultModel } from "./model";
 import { registerDashboardCard } from "./register-dashboard-card";
 
-export class VaultProgressCard extends BaseVaultCard {
-  static override editorTag = PROGRESS_EDITOR_TAG;
+/** A labelled progress bar for one running job; indeterminate when Vault hasn't reported progress. */
+export function progressTemplate(card: BaseVaultCard, job: Job): TemplateResult {
+  const hass = card.hass;
+  const known = job.progress !== null && job.progress > 0;
+  const percent = known ? Math.min(100, job.progress!) : null;
+  return html`<div class="row-main">
+    <span class="row-title">
+      ${card.entityLink(job.entities.job_progress, html`<span class="label">${job.name}</span>`)}
+      <span class="badge lvl-running">
+        ${card.t(job.restoring ? "progress.restoring" : "progress.backing_up")}${percent !== null
+          ? html`${card.t("common.separator")}${formatPercent(hass, percent)}`
+          : nothing}
+      </span>
+    </span>
+    <div
+      class="meter"
+      role="progressbar"
+      aria-label=${card.t(job.restoring ? "progress.restore_label" : "progress.label", { job: job.name })}
+      aria-valuemin="0"
+      aria-valuemax="100"
+      aria-valuenow=${percent ?? nothing}
+    >
+      <!-- Show a sliver of the stripes while progress is unknown or 0. -->
+      <div class="meter-fill lvl-running" style="width: ${Math.max(5, percent ?? 0)}%"></div>
+    </div>
+  </div>`;
+}
 
-  override getGridOptions() {
-    return { columns: 6, rows: 3, min_columns: 3, min_rows: 2 };
+export class VaultProgressCard extends BaseVaultCard {
+  protected get titleKey() {
+    return this.model && onlyRestoring(this.model) ? ("title.restore_progress" as const) : ("title.progress" as const);
+  }
+  protected titleIcon = mdiSync;
+
+  override getCardSize(): number {
+    return 2 + (this.model?.running.length ?? 0);
   }
 
-  protected override render(): TemplateResult {
-    const runningSensors = this.getEntities("running", "binary_sensor");
-    const activeRunnerEnt = this.getEntity("runner_active_job") || this.getEntity("runner_current_job_id");
-
-    const isRunning =
-      runningSensors.some((s) => s.state === "on") ||
-      (activeRunnerEnt?.state && activeRunnerEnt.state !== "idle");
-
-    const runningSensor = runningSensors.find((s) => s.state === "on");
-    const activeFriendlyName = runningSensor?.attributes?.friendly_name as string | undefined;
-    const activeJobName =
-      activeRunnerEnt?.state && activeRunnerEnt.state !== "idle"
-        ? activeRunnerEnt.state
-        : activeFriendlyName?.replace(/running/i, "").trim() || "Backup job";
-
-    // Progress percentage
-    const progressSensors = this.getEntities("progress");
-    let progressVal = 0;
-    for (const p of progressSensors) {
-      const v = Number(p.state);
-      if (!isNaN(v) && v > 0) {
-        progressVal = v;
-        break;
-      }
+  protected renderCard(model: VaultModel): TemplateResult {
+    const queueId = model.entry.entities.runner_queue_length;
+    const queued = queueId && this.hass?.states[queueId] ? Number(this.hass.states[queueId].state) : 0;
+    if (model.running.length === 0) {
+      return html`<ha-card>
+        ${this.renderHeader()}
+        <span class="sub">
+          ${this.t("progress.idle")}${model.nextBackup
+            ? html`${this.t("common.separator")}${this.t("progress.next", { time: this.relative(model.nextBackup.time) })}`
+            : nothing}
+        </span>
+      </ha-card>`;
     }
-
-    return html`
-      <ha-card>
-        <div class="header">
-          <div class="header-main">
-            <div class="header-icon ${isRunning ? "running" : ""}">
-              ${iconTemplate(mdiSync, 18)}
-            </div>
-            <div class="header-titles">
-              <span class="header-tag">Backup In Progress</span>
-              ${this.config.title ? html`<span class="header-title">${this.config.title}</span>` : ""}
-            </div>
-          </div>
-          ${isRunning
-            ? html`
-                <div class="badge running">
-                  <span class="badge-dot"></span>
-                  Active
-                </div>
-              `
-            : ""}
-        </div>
-
-        ${isRunning
-          ? html`
-              <div class="card-row" style="margin-top: 4px;">
-                <div class="card-row-main">
-                  <div class="card-row-title-bar">
-                    <span class="card-row-title">${activeJobName}</span>
-                    <span class="badge running">${progressVal}%</span>
-                  </div>
-                  <div class="progress-bar" style="margin: 6px 0;">
-                    <div
-                      class="progress-fill running"
-                      style="width: ${Math.max(5, progressVal)}%;"
-                    ></div>
-                  </div>
-                  <div class="card-row-meta">
-                    <span>Backing up items...</span>
-                  </div>
-                </div>
-              </div>
-            `
-          : html`
-              <div style="display: flex; align-items: center; gap: 12px; padding: 12px 4px;">
-                <div style="color: var(--vault-standby);">
-                  ${iconTemplate(mdiShieldCheck, 24)}
-                </div>
-                <div style="display: flex; flex-direction: column;">
-                  <span style="font-size: 0.95rem; font-weight: 600; color: var(--vault-text);">
-                    No backup running
-                  </span>
-                  <span style="font-size: 0.78rem; color: var(--vault-subtext);">
-                    Next scheduled run will start automatically
-                  </span>
-                </div>
-              </div>
-            `}
-      </ha-card>
-    `;
+    return html`<ha-card>
+      ${this.renderHeader(
+        this.levelBadge("running", this.t(onlyRestoring(model) ? "server.restoring" : "server.running"))
+      )}
+      <ul class="list">
+        ${model.running.map(
+          (job) => html`<li class="row">${progressTemplate(this, job)}</li>`
+        )}
+      </ul>
+      ${queued > 0 ? html`<span class="sub">${this.t("progress.queue", { count: queued })}</span>` : nothing}
+    </ha-card>`;
   }
 }
 
-export class VaultProgressCardEditor extends VaultCardEditor {}
-
 registerDashboardCard({
   tag: PROGRESS_CARD_TAG,
-  editorTag: PROGRESS_EDITOR_TAG,
   card: VaultProgressCard,
-  editor: VaultProgressCardEditor,
-  name: "Vault Backup In Progress",
-  description: "Display active backup job progress or idle state",
+  nameKey: "card.progress.name",
+  descriptionKey: "card.progress.description",
 });

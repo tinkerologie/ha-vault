@@ -31,7 +31,10 @@
           "completed": "mdi:check-circle",
           "partial": "mdi:alert-circle",
           "failed": "mdi:close-circle",
-          "idle": "mdi:sleep"
+          "idle": "mdi:sleep",
+          "skipped": "mdi:skip-next-circle-outline",
+          "cancelled": "mdi:cancel",
+          "restoring": "mdi:backup-restore"
         }
       },
       "job_last_run": {
@@ -88,6 +91,21 @@
       },
       "storage_total_space": {
         "default": "mdi:harddisk-plus"
+      },
+      "next_backup": {
+        "default": "mdi:calendar-clock"
+      },
+      "job_next_run": {
+        "default": "mdi:calendar-clock"
+      },
+      "protected_items": {
+        "default": "mdi:shield-check-outline"
+      },
+      "unprotected_items": {
+        "default": "mdi:shield-alert-outline"
+      },
+      "destinations_in_use": {
+        "default": "mdi:harddisk"
       }
     },
     "binary_sensor": {

@@ -1,3 +1,5 @@
+/** The parts of Home Assistant's frontend `hass` object the cards use. */
+
 export interface HassEntity {
   entity_id: string;
   state: string;
@@ -10,34 +12,45 @@ export type HassEntities = Record<string, HassEntity>;
 
 export interface DeviceRegistryEntry {
   id: string;
-  name: string;
+  name: string | null;
   name_by_user?: string | null;
-  identifiers: [string, string][];
-  manufacturer?: string | null;
-  model?: string | null;
-  sw_version?: string | null;
-  hw_version?: string | null;
+  identifiers?: [string, string][];
   configuration_url?: string | null;
 }
 
-export interface EntityRegistryEntry {
+export interface EntityRegistryDisplayEntry {
   entity_id: string;
   device_id?: string | null;
   platform?: string;
   translation_key?: string;
-  original_name?: string;
-  name?: string | null;
+}
+
+export interface FrontendLocaleData {
+  language: string;
+  number_format?: string;
+  time_format?: string;
+  date_format?: string;
+  time_zone?: string;
 }
 
 export interface HomeAssistant {
   states: HassEntities;
   devices?: Record<string, DeviceRegistryEntry>;
-  entities?: Record<string, EntityRegistryEntry>;
+  entities?: Record<string, EntityRegistryDisplayEntry>;
+  language?: string;
+  locale?: FrontendLocaleData;
+  config?: { time_zone?: string };
+  connection?: object;
   callService: (
     domain: string,
     service: string,
     serviceData?: Record<string, unknown>
   ) => Promise<unknown>;
+  callWS?: <T>(msg: Record<string, unknown>) => Promise<T>;
+  /** Since HA 2023.9. */
+  formatEntityState?: (stateObj: HassEntity, state?: string) => string;
+  /** Since HA 2023.9. */
+  formatEntityAttributeValue?: (stateObj: HassEntity, attribute: string, value?: unknown) => string;
 }
 
 export function fireEvent(

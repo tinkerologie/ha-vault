@@ -52,9 +52,11 @@ jobs:
       - name: Get Home Assistant version
         id: ha_version
         run: |
-          HA_VERSION=$(grep '"homeassistant"' hacs.json | head -1 | sed 's/.*"homeassistant"\s*:\s*"\([^"]*\)".*/\1/')
-          echo "HA_VERSION=${HA_VERSION}" >> $GITHUB_OUTPUT
-          echo "Home Assistant version: ${HA_VERSION}"
+          # The Home Assistant release the tests run on; script/setup/bootstrap
+          # installs the same pin with the matching pytest-homeassistant.
+          source script/.lib/ha-test-harness.sh
+          echo "HA_VERSION=${TEST_HOME_ASSISTANT_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Home Assistant version: ${TEST_HOME_ASSISTANT_VERSION}"
 
       - name: Cache Home Assistant installation
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
