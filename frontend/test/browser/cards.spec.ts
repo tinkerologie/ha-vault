@@ -613,3 +613,94 @@ test.describe("action fallbacks", () => {
     await expect(row.getByRole("group")).toContainText("may stop containers or VMs");
   });
 });
+
+test.describe("entity map cache", () => {
+  const wsCalls = (page: Page) =>
+    page.evaluate(() => (window as unknown as Win).calls.filter((c) => c.type === "ws").length);
+
+  test("cards share one request until the entity registry changes", async ({ page }) => {
+    await render(page, "healthy", { tags: ["vault-health-card", "vault-jobs-card", "vault-storage-card"] });
+    expect(await wsCalls(page)).toBe(1);
+
+    // A state change keeps hass.entities: no new request.
+    await page.evaluate(() =>
+      (window as unknown as Win).updateHass((hass) => {
+        const states = hass.states as Record<string, { state: string }>;
+        states["sensor.vault_backup_status"] = { ...states["sensor.vault_backup_status"]!, state: "ok" };
+      })
+    );
+    expect(await wsCalls(page)).toBe(1);
+
+    // A registry change (new hass.entities object) refetches, once for all cards.
+    await page.evaluate(() =>
+      (window as unknown as Win).updateHass((hass) => {
+        hass.entities = { ...(hass.entities as object) };
+      })
+    );
+    await expect.poll(() => wsCalls(page)).toBe(2);
+    await page.waitForTimeout(100);
+    expect(await wsCalls(page)).toBe(2);
+  });
+
+  test("a failed request is retried after a while, not on every state update", async ({ page }) => {
+    await page.clock.install();
+    await page.goto("/test/browser/fixture.html");
+    await page.waitForFunction(() => (window as unknown as Win).fixtureReady === true);
+    await render(page, "healthy", { tags: ["vault-health-card"], wsError: "Connection lost" });
+    await expect(card(page, "vault-health-card").getByRole("alert")).toContainText("Connection lost");
+    expect(await wsCalls(page)).toBe(1);
+
+    // State updates while it fails don't hammer the websocket.
+    for (let i = 0; i < 3; i++) {
+      await page.evaluate(() => (window as unknown as Win).updateHass(() => undefined));
+    }
+    expect(await wsCalls(page)).toBe(1);
+
+    // The connection comes back, and the card retries on its own.
+    await page.evaluate(async () => {
+      const { buildScenario } = await import("/test/browser/mock-hass.js");
+      const { entryMap } = buildScenario();
+      const w = window as unknown as Win & { hass: { callWS: unknown } };
+      w.hass.callWS = async (msg: unknown) => {
+        w.calls.push({ type: "ws", msg });
+        return { entries: entryMap };
+      };
+    });
+    await page.clock.runFor(31_000);
+    await expect(card(page, "vault-health-card")).toContainText("Healthy");
+    await expect(card(page, "vault-health-card").getByRole("alert")).toHaveCount(0);
+    expect(await wsCalls(page)).toBe(2);
+  });
+
+  test("a registry change retries a failed request at once", async ({ page }) => {
+    await render(page, "healthy", { tags: ["vault-health-card"], wsError: "Connection lost" });
+    await expect(card(page, "vault-health-card").getByRole("alert")).toBeVisible();
+    await page.evaluate(async () => {
+      const { buildScenario } = await import("/test/browser/mock-hass.js");
+      const { entryMap } = buildScenario();
+      const w = window as unknown as Win & { hass: { callWS: unknown } };
+      w.hass.callWS = async () => ({ entries: entryMap });
+      await w.updateHass((hass) => {
+        hass.entities = { ...(hass.entities as object) };
+      });
+    });
+    await expect(card(page, "vault-health-card")).toContainText("Healthy");
+  });
+});
+
+test("a card re-added while a retry was pending loads again", async ({ page }) => {
+  await render(page, "healthy", { tags: ["vault-health-card"], wsError: "Connection lost" });
+  await expect(card(page, "vault-health-card").getByRole("alert")).toBeVisible();
+  await page.evaluate(async () => {
+    const { buildScenario } = await import("/test/browser/mock-hass.js");
+    const { entryMap } = buildScenario();
+    const w = window as unknown as Win & { hass: { callWS: unknown } };
+    w.hass.callWS = async () => ({ entries: entryMap });
+    const el = document.getElementById("vault-health-card")!;
+    const slot = el.parentElement!;
+    el.remove();
+    slot.append(el); // e.g. switching dashboard views and back
+    await w.updateHass(() => undefined);
+  });
+  await expect(card(page, "vault-health-card")).toContainText("Healthy");
+});
