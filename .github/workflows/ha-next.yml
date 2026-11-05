@@ -137,10 +137,12 @@ jobs:
         run: |
           # pytest-homeassistant ships with every Core release and commit, so
           # install the version or revision that matches homeassistant. It brings
-          # pytest and the test libraries; the integration's only requirement,
-          # pydantic, comes with Home Assistant. A failed install fails the
-          # channel; there is no smoke-test-only fallback.
-          uv pip install "$REQUIREMENT" "$PLUGIN_REQUIREMENT"
+          # pytest and the test libraries. The integration's own requirements
+          # come from manifest.json, as Home Assistant installs them: Home
+          # Assistant itself no longer pulls in pydantic. A failed install fails
+          # the channel; there is no smoke-test-only fallback.
+          mapfile -t integration_requirements < <(jq -r '.requirements[]' custom_components/vault/manifest.json)
+          uv pip install "$REQUIREMENT" "$PLUGIN_REQUIREMENT" "${integration_requirements[@]}"
           python -c "from homeassistant.const import __version__; print('Installed Home Assistant', __version__)"
 
       - name: Import every module and check for deprecations
