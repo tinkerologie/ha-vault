@@ -18,7 +18,8 @@ async def test_repair_flow_init_shows_form(hass: HomeAssistant) -> None:
     """Test repair flow init step shows a form."""
     flow = VaultRepairFlow()
     flow.hass = hass
-    flow.issue_id = "test_issue"
+    # The flow manager passes the issue in the context; setting issue_id is deprecated.
+    flow.context = {"issue_id": "test_issue"}
 
     result = await flow.async_step_init(user_input=None)
     assert result["type"] == "form"
@@ -38,7 +39,8 @@ async def test_repair_flow_init_with_input_deletes_issue(hass: HomeAssistant) ->
 
     flow = VaultRepairFlow()
     flow.hass = hass
-    flow.issue_id = "test_issue"
+    # The flow manager passes the issue in the context; setting issue_id is deprecated.
+    flow.context = {"issue_id": "test_issue"}
 
     result = await flow.async_step_init(user_input={})
     assert result["type"] == "create_entry"
