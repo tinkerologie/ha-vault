@@ -6,6 +6,10 @@ The changelog uses date sections in `YYYY.MM.DD` format.
 
 ## [Unreleased]
 
+### Added
+
+- Configure engineering agent skills with GitHub issue tracking, canonical triage labels, and glossary/ADR guidance in `docs/agents/`.
+
 ## [2026.11.0] - 2026-11-05
 
 ### Added
@@ -83,7 +87,6 @@ The changelog uses date sections in `YYYY.MM.DD` format.
 - **Updated Device Registry Lookups** ([#63](https://github.com/tinkerologie/ha-vault/pull/63)): Migrated deprecated `device_registry.async_get_device` references in test fixtures to `device_registry.async_get_device_by_identifier`.
 - **Refined Repairs Flow Typing** ([#63](https://github.com/tinkerologie/ha-vault/pull/63)): Updated `RepairsFlowResult` return types in `repairs.py` for modern Home Assistant typing conventions.
 
-
 ## [2026.06.06] - 2026-06-20
 
 ### Added
@@ -105,6 +108,7 @@ The changelog uses date sections in `YYYY.MM.DD` format.
 ## [2026.06.03] - 2026-06-13
 
 ### Added
+
 - **Anomaly alerts now flow into Home Assistant** ([#27](https://github.com/tinkerologie/ha-vault/issues/27)): the coordinator polls Vault's open anomalies (failure streaks, size drift, etc. — the same alerts Vault sends to Unraid notifications)
   - New **"Open anomalies" sensor** with per-anomaly details (detector, severity, summary, affected job) as attributes
   - New per-job **"Problem" binary sensor** that turns on while the job has an open anomaly

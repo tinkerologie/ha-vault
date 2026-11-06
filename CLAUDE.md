@@ -1,6 +1,7 @@
 # Claude Code Instructions
 
-This repository uses a shared AI agent instruction system. **All instructions are in [`AGENTS.md`](AGENTS.md).**
+Repository-wide coding instructions live in [`AGENTS.md`](AGENTS.md).
+Engineering skill configuration is in the Agent skills section below.
 
 Read `AGENTS.md` completely before starting any work. It contains:
 
@@ -34,3 +35,20 @@ Consult the relevant instruction file when working on specific file types:
 - `api.instructions.md` — API client, exception hierarchy
 - `services_yaml.instructions.md` — Service action definitions
 - `translations.instructions.md` — Translation file structure
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues on `tinkerologie/ha-vault`. Read `docs/agents/issue-tracker.md`
+before issue or specification operations.
+
+### Triage labels
+
+Use the default canonical labels. Read `docs/agents/triage-labels.md`
+before triaging issues.
+
+### Domain docs
+
+Single-context layout. Read `docs/agents/domain.md` before exploring
+domain concepts or architectural decisions.
