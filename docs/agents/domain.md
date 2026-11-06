@@ -6,8 +6,8 @@ Layout: single-context.
 
 - Read GLOSSARY.md at the repository root when present.
 - Read relevant architecture decisions in docs/adr/.
-- If these files are absent, proceed silently. Domain-modeling creates
-  them when terms or decisions are resolved.
+- If these files are absent, proceed silently. Matt Pocock's
+  `domain-modeling` skill creates them when terms or decisions are resolved.
 
 ## Consumer rules
 
