@@ -80,7 +80,7 @@ Before you install the update:
 
 ## Show a notification when a backup fails
 
-This automation shows a notification when Vault gives a `vault_backup_failed` event for a failed or partial backup.
+This automation shows a notification when Home Assistant sends `vault_backup_failed`. The integration sends this event when it receives a failed or partial backup result over WebSocket. If the connection is closed, the automation can miss the failure.
 
 Replace `1` with the ID of the Vault backup job. If you have more than one Vault server, add `entry_id` to `event_data`. Use the configuration entry ID for that server.
 

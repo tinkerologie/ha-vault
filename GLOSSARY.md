@@ -89,7 +89,7 @@ The condition of a Destination that Vault gives.
 *Avoid*: server availability
 
 **Backup Event**:
-A Home Assistant event for a Backup Run. A run with status `failed` or `partial` gives a `vault_backup_failed` event.
+A Home Assistant event for a Backup Run. For `failed` or `partial` runs, Home Assistant sends `vault_backup_failed` when the integration receives the run completion event over WebSocket. Polling does not send this event.
 *Avoid*: restore event
 
 **Restore Event**:
