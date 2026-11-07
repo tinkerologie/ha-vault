@@ -1,283 +1,91 @@
 # Configuration Reference
 
-This document describes all configuration options and settings available in the Vault custom integration.
+## Connection settings
 
-## Integration Configuration
+Home Assistant shows the connection settings when you [add Vault](GETTING_STARTED.md#connect-to-vault).
 
-### Initial Setup Options
+| Setting             | Default | Description                                              |
+| ------------------- | ------- | -------------------------------------------------------- |
+| **Host**            | None    | The host name or IP address of the Unraid server.        |
+| **Port**            | `24085` | The port of the Vault API.                               |
+| **Use TLS (HTTPS)** | Off     | If the Vault connection uses HTTPS, enable this setting. |
+| **API Key**         | None    | If Vault uses API key authentication, enter the key.     |
 
-These options are configured during initial setup via the Home Assistant UI.
+### Change the connection settings
 
-#### Connection Settings
+1. Open **Settings** → **Devices & Services**.
+2. Open the menu on the Vault integration entry.
+3. Select **Reconfigure**.
+4. Change the connection settings.
+5. Click **Submit**.
 
-| Option | Type | Required | Default | Description |
-|--------|------|----------|---------|-------------|
-| **Host** | string | Yes | - | Hostname or IP address of the device/service |
-| **Port** | integer | No | 8080 | Connection port |
-| **API Key** | string | Yes* | - | Authentication key or token |
-| **Use SSL** | boolean | No | false | Enable HTTPS connection |
+### Add more than one Vault server
 
-*Required if the device/service requires authentication.
+Add a Vault integration entry for each server. Home Assistant gives each server its own device and entities.
+If you use a Vault action with multiple entries, [select the Vault server](AUTOMATIONS.md#select-a-vault-server) with `config_entry_id`.
 
-#### Update Settings
+## Entity settings
 
-| Option | Type | Required | Default | Description |
-|--------|------|----------|---------|-------------|
-| **Update Interval** | integer (seconds) | No | 300 | How often to poll for updates (minimum: 30 seconds) |
-| **Name** | string | No | "Device" | Friendly name for the integration instance |
+1. Open **Settings** → **Devices & Services** → **Entities**.
+2. Select the entity.
+3. Open the entity settings.
 
-### Options Flow (Reconfiguration)
+You can change the entity name, entity ID, or icon in these settings. You can also disable the entity.
 
-After initial setup, you can modify settings:
+## Data updates
 
-1. Go to **Settings** → **Devices & Services**
-2. Find "Vault"
-3. Click **Configure**
-4. Modify settings
-5. Click **Submit**
-
-**Available options:**
-
-- Update interval
-- Name/identifier
-- Connection timeout
-- Additional features (device-specific)
-
-## Entity Configuration
-
-### Entity Customization
-
-Customize entities via the UI or `configuration.yaml`:
-
-#### Via Home Assistant UI
-
-1. Go to **Settings** → **Devices & Services** → **Entities**
-2. Find and click the entity
-3. Click the settings icon
-4. Modify:
-   - Entity ID
-   - Name
-   - Icon
-   - Device class (for applicable entities)
-   - Area assignment
-
-#### Via configuration.yaml
-
-```yaml
-homeassistant:
-  customize:
-    sensor.device_name_sensor:
-      friendly_name: "Custom Sensor Name"
-      icon: mdi:custom-icon
-      unit_of_measurement: "units"
-```
-
-### Disabling Entities
-
-If you don't need certain entities:
-
-1. Go to **Settings** → **Devices & Services** → **Entities**
-2. Find the entity
-3. Click it, then click **Settings** icon
-4. Toggle **Enable entity** off
-
-Disabled entities won't update or consume resources.
-
-## Services
-
-The integration provides the following services:
-
-### `vault.example_service`
-
-Execute an example service action on the device.
-
-**Service data:**
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `entity_id` | string or list | No | Target entity/entities (if omitted, targets all) |
-| `parameter` | string | Yes | Service-specific parameter |
-| `value` | integer | No | Numeric value for the action |
-
-**Example:**
-
-```yaml
-service: vault.example_service
-target:
-  entity_id: switch.device_name_switch
-data:
-  parameter: "setting_name"
-  value: 42
-```
-
-### Using Services in Automations
-
-```yaml
-automation:
-  - alias: "Call service at sunset"
-    trigger:
-      - trigger: sun
-        event: sunset
-    action:
-      - action: vault.example_service
-        target:
-          entity_id: switch.device_name_switch
-        data:
-          parameter: "mode"
-          value: 1
-```
-
-## Advanced Configuration
-
-### Multiple Instances
-
-You can add multiple instances of this integration for different devices:
-
-1. Go to **Settings** → **Devices & Services**
-2. Click **+ Add Integration**
-3. Search for "Vault"
-4. Configure with different connection details
-
-Each instance creates separate entities with unique entity IDs.
-
-### Network Configuration
-
-If the device is on a different network or behind a firewall:
-
-- Ensure ports are open (default: 8080)
-- Configure port forwarding if needed
-- Consider VPN for remote access
-- Some devices may require static IP addresses
-
-### Polling Behavior
-
-The integration uses polling to fetch updates:
-
-- **Minimum interval:** 30 seconds (prevents overloading the device)
-- **Recommended interval:** 5 minutes (default)
-- **Longer intervals:** Save resources but reduce responsiveness
-
-Adjust based on your needs:
-
-- Real-time monitoring: 30-60 seconds
-- Regular updates: 5 minutes
-- Slow-changing values: 15-30 minutes
+The integration requests data from Vault every 60 seconds. During an active backup or restore, the interval changes to 10 seconds.
+The integration also uses WebSocket events to start data updates.
 
 ## Dashboard cards
 
-The integration registers its dashboard cards automatically. Add them from **Edit dashboard → Add card**, and search for "Vault". Every card shows a live preview in the card picker, and the editor has two options:
+Home Assistant registers the Vault cards when the integration loads.
 
-- **Vault server**: the Vault device to show. Leave it empty to use the first Vault server. Older configurations that name the server by its device name keep working.
-- **Title**: replaces the card's default title.
+1. Open **Edit dashboard** → **Add card**.
+2. Search for "Vault".
+3. Select a card. The card picker shows a preview.
 
-| Card | Shows |
-| ---- | ----- |
-| `custom:vault-dashboard-card` | A compact summary: one status, what needs attention, open anomalies, running backups or restores, and the last and next backup. Spans the full width of a section. |
-| `custom:vault-health-card` | The server's status and the reasons behind it. A failed job is never shown as healthy, and unavailable data shows as unknown. |
-| `custom:vault-protected-card` | Items in a restore point out of every container, VM and folder Vault can see, including items no job covers. |
-| `custom:vault-next-run-card` | When the next scheduled backup starts, or which backup or restore is running. |
-| `custom:vault-last-backup-card` | The latest backup's outcome, size and duration. |
-| `custom:vault-progress-card` | Progress of running backups and restores, labelled as either. |
-| `custom:vault-jobs-card` | Each job with its status, last and next run, and a **Run backup** action. |
-| `custom:vault-activity-card` | Each job's latest backup, newest first, with its real outcome. |
-| `custom:vault-storage-card` | The server's storage destinations with health and capacity. |
-| `custom:vault-anomalies-card` | Open anomalies. Option `max_items` (default 5) limits the list. Home Assistant suggests this card for a Vault "Open anomalies" sensor. |
-| `custom:vault-rules-card` | The 3-2-1 rule checked against destinations that enabled jobs have backed up to. It says "Likely met" at best: destinations meeting the rule don't prove every item has three copies, and Vault doesn't know where a destination is, so any network destination counts as remote. |
+The card editor has these settings.
 
-Behaviour worth knowing:
+- **Vault server** selects the Vault device. Leave this field empty to use the first server. You can also use the device name in YAML.
+- **Title** changes the default title.
 
-- **Run backup always asks first**, using Home Assistant's confirmation dialog. A backup can stop containers or VMs, depending on the job's settings, and the card can't tell which jobs do. If starting the backup fails, the card says so.
-- **Open in Vault** opens the Vault UI on your Unraid server in a new tab.
-- Selecting a job, value or attention item opens Home Assistant's more-info dialog for the entity behind it.
-- Cards size themselves in sections views (`rows: auto`), so lists never clip. They use your theme's colours in light and dark mode, your language, and your number, date and time settings.
+| Card                            | Shows                                                                                                                                              |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `custom:vault-dashboard-card`   | Server status, problems, open anomalies, and current activity. It shows the last and next backup. It uses the full width of a section.             |
+| `custom:vault-health-card`      | Server status and its causes. A failed job changes the status. Unavailable data shows as unknown.                                                  |
+| `custom:vault-protected-card`   | Items with a restore point compared with all containers, VMs, and folders that Vault finds. This includes items outside a backup job.              |
+| `custom:vault-next-run-card`    | The next scheduled backup or the current backup or restore.                                                                                        |
+| `custom:vault-last-backup-card` | The result, size, and duration of the latest backup.                                                                                               |
+| `custom:vault-progress-card`    | Progress of current backups and restores. The card shows the type of each operation.                                                               |
+| `custom:vault-jobs-card`        | The status, last run, and next run for each job, with a **Run backup** action.                                                                     |
+| `custom:vault-activity-card`    | The latest backup for each job, from newest to oldest.                                                                                             |
+| `custom:vault-storage-card`     | Storage destinations, health, and capacity.                                                                                                        |
+| `custom:vault-anomalies-card`   | Open anomalies. Use `max_items` to set the list limit (default 5).                                                                                 |
+| `custom:vault-rules-card`       | An estimate of the 3-2-1 rule for destinations that enabled jobs use. The card can show "Likely met". Vault counts network destinations as remote. |
+
+When you select **Run backup**, the card shows a confirmation dialog. If the job settings let Vault stop containers or VMs, the backup can stop them. The card shows an error if the job does not start.
+
+**Open in Vault** opens the Vault UI in a new tab. Select a job, value, or problem to open the Home Assistant dialog for its entity.
+
+Cards use automatic row height in a sections view (`rows: auto`). They use your theme colors and the Home Assistant language, number, date, and time settings.
 
 ```yaml
 type: custom:vault-jobs-card
-server: 0123456789abcdef0123456789abcdef  # optional: a Vault device ID
-title: Backups                           # optional
+server: 0123456789abcdef0123456789abcdef # optional: a Vault device ID
+title: Backups # optional
 ```
 
-## Diagnostic Data
+## Diagnostic data
 
-The integration provides diagnostic data for troubleshooting:
+1. Open **Settings** → **Devices & Services**.
+2. Open the menu on the Vault integration entry.
+3. Select **Download diagnostics**.
 
-1. Go to **Settings** → **Devices & Services**
-2. Find "Vault"
-3. Click on the device
-4. Click **Download Diagnostics**
+The file includes the connection settings, Vault health data, and information about the backup jobs.
+The integration removes values for known sensitive fields. Examine the file for sensitive information before you share it.
 
-Diagnostic data includes:
+## Related documentation
 
-- Connection status
-- Last update timestamp
-- API response data
-- Entity states
-- Error history
-
-**Privacy note:** Diagnostic data may contain sensitive information. Review before sharing.
-
-## Blueprints
-
-The integration works with Home Assistant Blueprints for reusable automations:
-
-### Example Blueprint
-
-```yaml
-blueprint:
-  name: Vault Alert
-  description: Send notification when sensor exceeds threshold
-  domain: automation
-  input:
-    sensor_entity:
-      name: Sensor
-      selector:
-        entity:
-          domain: sensor
-          integration: vault
-    threshold:
-      name: Threshold
-      selector:
-        number:
-          min: 0
-          max: 100
-
-trigger:
-  - trigger: numeric_state
-    entity_id: !input sensor_entity
-    above: !input threshold
-
-action:
-  - action: notify.notify
-    data:
-      message: "Sensor exceeded threshold!"
-```
-
-## Configuration Examples
-
-See [EXAMPLES.md](./EXAMPLES.md) for complete automation and dashboard examples.
-
-## Troubleshooting Configuration
-
-### Config Entry Fails to Load
-
-If the integration fails to load after configuration:
-
-1. Check Home Assistant logs for errors
-2. Verify connection details are correct
-3. Test connectivity from Home Assistant to the device
-4. Try removing and re-adding the integration
-
-### Options Don't Save
-
-If configuration changes aren't persisted:
-
-1. Check for validation errors in the UI
-2. Ensure values are within allowed ranges
-3. Review logs for detailed error messages
-4. Try restarting Home Assistant
-
-## Related Documentation
-
-- [Getting Started](./GETTING_STARTED.md) - Installation and initial setup
-- [Examples](./EXAMPLES.md) - Automation and dashboard examples
-- [GitHub Issues](https://github.com/tinkerologie/ha-vault/issues) - Report problems
+- [Getting Started](GETTING_STARTED.md)
+- [Automations](AUTOMATIONS.md)

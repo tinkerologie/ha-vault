@@ -1,6 +1,6 @@
 # Vault — Home Assistant Integration Specification
 
-> Developer reference for building a Home Assistant custom integration that interfaces with the **Vault** backup daemon running on an Unraid server.
+> This document records the initial integration design. For the current architecture, see the [architecture overview](development/ARCHITECTURE.md). For current automation examples, see [Vault Automations](user/AUTOMATIONS.md).
 
 ## Table of Contents
 

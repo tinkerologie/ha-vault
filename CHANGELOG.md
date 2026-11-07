@@ -12,6 +12,10 @@ The changelog uses date sections in `YYYY.MM.DD` format.
 
 - Configure engineering agent skills with GitHub issue tracking, canonical triage labels, and glossary/ADR guidance in `docs/agents/`.
 
+### Changed
+
+- Correct the setup, configuration, and automation guides. Add ASD-STE100 Issue 9 guidance for contributors.
+
 ## [2026.11.0] - 2026-11-05
 
 ### Added
