@@ -1,218 +1,38 @@
-# Architecture Overview
+# Architecture overview
 
-This document describes the technical architecture of the Vault custom component for Home Assistant.
+The integration connects Home Assistant to one or more Vault servers. Read the [glossary](../../GLOSSARY.md) for domain meanings and [ADRs](../adr/README.md) for existing architectural trade-offs.
 
-## Directory Structure
-
-```text
-custom_components/vault/
-├── __init__.py              # Integration setup/unload + service registration
-├── binary_sensor.py         # Connectivity + per-job boolean state entities
-├── button.py                # Per-job run-now button entities
-├── config_flow.py           # User setup, auth, reauth, reconfigure
-├── const.py                 # Domain/constants
-├── coordinator.py           # VaultDataUpdateCoordinator + runtime data container
-├── diagnostics.py           # Diagnostics payload with redaction
-├── entity.py                # Shared VaultEntity base class
-├── manifest.json            # Integration metadata
-├── sensor.py                # Global/per-job/per-storage sensors
-├── services.yaml            # Service definitions (run_backup/restore/test_storage)
-├── api/
-│   ├── __init__.py
-│   ├── client.py            # REST API client
-│   ├── exceptions.py        # Integration-specific API exceptions
-│   ├── models.py            # Pydantic models for API payloads
-│   └── websocket.py         # WS client for live progress/events
-└── translations/
-    └── en.json              # English strings
-```
-
-## Core Components
-
-### Setup Layer (`__init__.py`)
-
-- Registers integration services in `async_setup()`.
-- Creates API client, WebSocket client, and coordinator in `async_setup_entry()`.
-- Stores runtime objects on `entry.runtime_data`.
-- Forwards entry setup to platforms: sensor, binary_sensor, button.
-
-### Coordinator Layer (`coordinator.py`)
-
-- Single polling source for entity data (`VaultDataUpdateCoordinator`).
-- Aggregates health, settings, encryption, storage, jobs, activity, job history, and restore-point counts.
-- Converts transport/auth/api failures into HA-native `UpdateFailed` / `ConfigEntryAuthFailed`.
-- Dynamically adjusts polling interval for active backups.
-
-### API Layer (`api/`)
-
-- `client.py`: async REST calls via aiohttp with 10-second timeout and explicit error mapping.
-- `models.py`: typed Pydantic models for API responses and coordinator payloads.
-- `websocket.py`: persistent reconnecting WS listener with header-based auth.
-
-### Entity Layer (`entity.py`, `sensor.py`, `binary_sensor.py`, `button.py`)
-
-- `VaultEntity` provides unique IDs, device info, coordinator wiring, and `has_entity_name` behavior.
-- Platform entities consume coordinator data only (no direct API calls from entity properties).
-- Dynamic per-job/per-storage entity creation is driven by coordinator data updates.
-
-## Data Flow
+## Runtime flow
 
 ```text
-Config Entry
-   │
-   ▼
-API Client + WebSocket Client
-   │
-   ▼
-VaultDataUpdateCoordinator (polling aggregate)
-   │
-   ├── sensor entities
-   ├── binary_sensor entities
-   └── button entities
+Vault Connection
+  -> REST client -> coordinator polling snapshot -> entities
+  -> live event client -> runtime progress + requested refresh
+Home Assistant entity registry -> Entity Map -> Vault cards
 ```
 
-## AI Agent Instructions
+[Integration setup](../../custom_components/vault/__init__.py) registers actions, creates the clients and coordinator using Home Assistant's shared HTTP session, performs the first refresh and stores typed runtime state in `entry.runtime_data`. It connects the live event listener and forwards the sensor, binary sensor, button and event platforms. Unload disconnects the event client after platform unloading succeeds.
 
-This project includes comprehensive instruction files for AI coding assistants (GitHub Copilot, Claude, etc.) to ensure consistent code generation that follows Home Assistant patterns and project conventions.
+## State and transport ownership
 
-### Instruction File Architecture
+The [REST client](../../custom_components/vault/api/client.py) owns authenticated requests and transport errors; [models](../../custom_components/vault/api/models.py) describe upstream payloads. The [coordinator](../../custom_components/vault/coordinator.py) aggregates server, storage, Job, history, Restore Point and coverage data, bounds per-Job request concurrency and adjusts polling while work is active.
 
-**Layered approach:**
+The [live event client](../../custom_components/vault/api/websocket.py) reconnects and dispatches events. Setup listeners update runtime progress, translate backup and restore events separately, and request debounced polling refreshes for state changes. The polling snapshot and live progress are complementary; live events do not replace reconciliation.
 
-1. **`AGENTS.md`** - High-level "survival guide" for all AI agents (project overview, workflow, validation)
-2. **`.github/instructions/*.instructions.md`** - Detailed path-specific patterns (applied based on file being edited)
-3. **`.github/copilot-instructions.md`** - GitHub Copilot-specific workflow guidance
+[Run selection](../../custom_components/vault/runs.py) distinguishes Backup Runs from Restore Runs in mixed history. Backup sensors must not count restores as backup success or treat partial backups as complete protection. Available history is bounded, so derived latest/last-success values describe the history fetched, not a complete archive.
 
-### Available Instruction Files
+## Entities, actions and cards
 
-| File | Applies To | Purpose |
-|------|------------|---------|
-| `python.instructions.md` | `**/*.py` | Python code style, imports, type hints, async patterns, linting |
-| `yaml.instructions.md` | `**/*.yaml`, `**/*.yml` | YAML formatting, Home Assistant YAML conventions |
-| `json.instructions.md` | `**/*.json` | JSON formatting, schema validation, no trailing commas |
-| `markdown.instructions.md` | `**/*.md` | Markdown formatting, documentation structure, linting |
-| `manifest.instructions.md` | `**/manifest.json` | Integration manifest requirements, quality scale, IoT class |
-| `configuration_yaml.instructions.md` | `**/configuration.yaml` | Home Assistant configuration patterns (deprecated for device integrations) |
-| `config_flow.instructions.md` | `**/config_flow_handler/**/*.py`, `**/config_flow.py` | Config flow patterns, discovery, reauth, reconfigure, unique IDs |
-| `service_actions.instructions.md` | `**/service_actions/**/*.py` | Service action implementation, registration in `async_setup()`, error handling |
-| `services_yaml.instructions.md` | `**/services.yaml` | Service action definitions, schema, descriptions, examples (legacy filename) |
-| `entities.instructions.md` | Entity platform files | Entity implementation, EntityDescription, device info, state management |
-| `coordinator.instructions.md` | `**/coordinator/**/*.py`, `**/api/**/*.py` | DataUpdateCoordinator patterns, error handling, caching, pull vs push |
-| `api.instructions.md` | `**/api/**/*.py`, `**/coordinator/**/*.py` | API client implementation, exceptions, rate limiting, pagination |
-| `diagnostics.instructions.md` | `**/diagnostics.py` | Diagnostics data collection, `async_redact_data()` for sensitive data |
-| `repairs.instructions.md` | `**/repairs.py` | Repair flows, issue creation, severity levels, fix flows |
-| `translations.instructions.md` | `**/translations/*.json` | Translation file structure, placeholders, nested keys |
-| `tests.instructions.md` | `tests/**/*.py` | Test patterns, fixtures, mocking, pytest conventions |
+[Base entities](../../custom_components/vault/entity.py) share a server device per connection. Entity unique IDs use entry-scoped stable role/object keys; user-facing names and Entity IDs can change. Platform properties read coordinator/runtime state. User actions use the client to request backup, restore or Destination testing; with multiple connections, global actions require an explicit configuration entry selection.
 
-**Note:** Entity platform files include: `alarm_control_panel/**/*.py`, `binary_sensor/**/*.py`, `button/**/*.py`, `camera/**/*.py`, `climate/**/*.py`, `cover/**/*.py`, `fan/**/*.py`, `humidifier/**/*.py`, `light/**/*.py`, `lock/**/*.py`, `number/**/*.py`, `select/**/*.py`, `sensor/**/*.py`, `siren/**/*.py`, `switch/**/*.py`, `vacuum/**/*.py`, `water_heater/**/*.py`, `entity/**/*.py`, `entity_utils/**/*.py`
+The [Home Assistant WebSocket command](../../custom_components/vault/websocket_api.py) provides `vault/entity_map`, resolving roles through the entity registry. This is separate from the daemon event connection. [Card source](../../frontend/src/) consumes that map and entity state, allowing user renames without inferring identities from names; card restore links open Vault's UI, while the integration also exposes a restore action.
 
-### Instruction File Application
+## Maintainer navigation
 
-**GitHub Copilot:**
+- [Config flow](../../custom_components/vault/config_flow.py): connection uniqueness, reauthentication and reconfiguration.
+- [Diagnostics](../../custom_components/vault/diagnostics.py): diagnostic collection and redaction.
+- [Services](../../custom_components/vault/services.yaml): supported actions and their inputs.
+- [HACS metadata](../../hacs.json) and [manifest](../../custom_components/vault/manifest.json): compatibility and dependencies.
+- [Agent instructions](../../AGENTS.md): development scripts and contribution workflow.
 
-Uses frontmatter `applyTo` patterns to automatically apply instructions based on file being edited:
-
-```yaml
----
-applyTo:
-  - "**/*.py"
----
-```
-
-**Other AI Agents:**
-
-Typically read `AGENTS.md` for project overview and may use path-specific instructions when available.
-
-### Benefits
-
-- ✅ **Consistent code quality** - AI generates code that passes validation on first run
-- ✅ **Home Assistant patterns** - Follows Core development standards and best practices
-- ✅ **Context-aware** - File-specific instructions ensure appropriate patterns
-- ✅ **Reduced iteration** - Fewer validation errors and corrections needed
-- ✅ **Knowledge transfer** - Instructions document project conventions and decisions
-
-### Maintaining Instructions
-
-- Keep `AGENTS.md` concise (high-level guidance only, ~30,000 ft view)
-- Put detailed patterns in path-specific `.instructions.md` files
-- Update instructions when patterns change or new conventions emerge
-- Remove outdated rules to prevent bloat
-- Document major architectural decisions in `DECISIONS.md`
-
-### Using GitHub Copilot Coding Agent
-
-**GitHub Copilot Coding Agent** ([github.com/copilot/agents](https://github.com/copilot/agents)) can autonomously initialize new projects from this template and implement features.
-
-**Template Initialization:**
-
-When creating a repository from this template, you can provide a prompt to Copilot Coding Agent that includes:
-
-- Integration domain, title, and repository details
-- Instructions to run `initialize.sh` in unattended mode with `--force` flag
-- The agent will set up the project and create an initialization pull request
-
-**Working with initialized projects:**
-
-Once a project is initialized, Copilot Coding Agent:
-
-- Automatically reads all instruction files (`AGENTS.md`, `.github/copilot-instructions.md`, `.github/instructions/*.instructions.md`)
-- Runs validation scripts (`script/check`) to verify changes
-- Creates pull requests with comprehensive implementations
-- Can iterate based on test failures and linter errors
-
-**Agent-specific instructions (since November 2025):**
-
-Use `excludeAgent` frontmatter to control which agents use specific instructions:
-
-```yaml
----
-applyTo: "**/*.py"
-excludeAgent: "code-review"  # Only coding-agent uses this
----
-```
-
-See [`.github/COPILOT_CODING_AGENT.md`](../../.github/COPILOT_CODING_AGENT.md) for detailed usage instructions, example prompts, and troubleshooting.
-
-## Key Design Decisions
-
-See [DECISIONS.md](./DECISIONS.md) for architectural and design decisions made during development.
-
-## Extension Points
-
-To add new functionality:
-
-### Adding a New Platform
-
-1. Create directory: `custom_components/vault/<platform>/`
-2. Implement `__init__.py` with `async_setup_entry()`
-3. Create entity classes inheriting from platform base + `VaultEntity`
-4. Add platform to `PLATFORMS` in `const.py`
-
-### Adding a New Service Action
-
-1. Create service action handler in `service_actions/<service_name>.py`
-2. Define service action in `services.yaml` (legacy filename) with schema
-3. Register service action in `__init__.py:async_setup()` (NOT `async_setup_entry`)
-
-### Modifying Data Structure
-
-1. Update coordinator data type in `coordinator.py`
-2. Adjust API client response parsing in `api/client.py`
-3. Update entity property implementations to match new structure
-
-## Testing Strategy
-
-- **Unit tests:** Test individual functions and classes in isolation
-- **Integration tests:** Test coordinator with mocked API
-- **Fixtures:** Shared test fixtures in `tests/conftest.py`
-
-Tests mirror the source structure under `tests/`.
-
-## Dependencies
-
-Core dependencies (see `manifest.json`):
-
-- `aiohttp` - Async HTTP client
-- Home Assistant 2025.7.0+ - Platform requirements
-
-Development dependencies (see `requirements_dev.txt`, `requirements_test.txt`).
+Generated card assets live under `custom_components/vault/frontend/`; edit TypeScript source and use the frontend build when changing behavior. Documentation-only changes do not require rebuilding those assets.

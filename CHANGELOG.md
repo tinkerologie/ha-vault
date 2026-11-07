@@ -8,6 +8,8 @@ The changelog uses date sections in `YYYY.MM.DD` format.
 
 ### Added
 
+- Canonical Vault glossary and source-linked architecture decisions, replacing stale template architecture guidance.
+
 - Configure engineering agent skills with GitHub issue tracking, canonical triage labels, and glossary/ADR guidance in `docs/agents/`.
 
 ## [2026.11.0] - 2026-11-05
