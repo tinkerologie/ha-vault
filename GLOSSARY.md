@@ -73,7 +73,7 @@ A discovered item represented in at least one retained Restore Point.
 _Avoid_: configured item
 
 **Pending Item**:
-An item selected by a Job that has not yet been backed up.
+An item selected by a Job without recorded protection in a retained Restore Point.
 _Avoid_: protected item
 
 **Unprotected Item**:
