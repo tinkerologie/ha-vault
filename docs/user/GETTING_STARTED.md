@@ -24,6 +24,7 @@ Use this guide to install Vault in Home Assistant and connect it to your Unraid 
 ## Connect to Vault
 
 If Home Assistant finds Vault on the network, open the Vault entry under **Settings** → **Devices & Services**.
+If Home Assistant shows **Confirm Vault Discovery**, enter the key in **API Key**. Click **Submit**.
 
 To add Vault without network discovery, do these steps.
 

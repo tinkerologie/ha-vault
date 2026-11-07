@@ -280,10 +280,10 @@ This automation starts a backup at 02:00 each day.
 ```yaml
 automation:
   - alias: "Run Nightly Vault Backups"
-    trigger:
-      - platform: time
+    triggers:
+      - trigger: time
         at: "02:00:00"
-    action:
+    actions:
       - action: vault.run_backup
         data:
           job_name: "Nightly Full Backup"
@@ -292,7 +292,7 @@ automation:
 ### Backup Before System Updates
 
 See [Start a backup when a Home Assistant update is available](docs/user/AUTOMATIONS.md#start-a-backup-when-a-home-assistant-update-is-available).
-Before you install the update, make sure that the backup has status `completed`.
+Before you install the update, make sure that the backup completed. Make sure that its restore point contains Home Assistant.
 
 ### Alert on Backup Failure
 
@@ -305,17 +305,17 @@ This automation shows a notification with the progress at the start of a backup.
 ```yaml
 automation:
   - alias: "Backup Progress Notification"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id: binary_sensor.my_backup_job_running
         from: "off"
         to: "on"
-    condition:
+    conditions:
       - condition: state
         entity_id: binary_sensor.my_backup_job_running
         attribute: run_type
         state: backup
-    action:
+    actions:
       - action: persistent_notification.create
         data:
           title: "Backup Running"
@@ -372,7 +372,7 @@ Restart Home Assistant. Read the logs under **Settings** → **System** → **Lo
 
 If Home Assistant shows **Unable to connect to Vault**, see [Find connection errors](docs/user/GETTING_STARTED.md#find-connection-errors).
 
-To do a connection test from the Home Assistant host, use `curl http://YOUR_HOST:24085/api/v1/health`. If Vault uses TLS, replace `http` with `https`.
+To do a connection test from the Home Assistant host, use `curl -i http://YOUR_HOST:24085/ping`. If Vault uses TLS, replace `http` with `https`. A `200` response confirms that the host can connect to Vault.
 
 #### "API Error" Messages
 
