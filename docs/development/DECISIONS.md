@@ -1,11 +1,11 @@
 # Architectural and design decisions
 
-Current, source-checked decisions live in the [ADR index](../adr/README.md). Domain terms live in the [glossary](../../GLOSSARY.md).
+See the [ADR index](../adr/README.md) for current architecture decisions. See the [glossary](../../GLOSSARY.md) for Vault terms.
 
 ## Historical template notes
 
-The previous decision log was dated **2025-11-29 (Template initialization)**. It described coordinator-based fetching, a separate transport client, platform-specific directories and static entity descriptions. That date belongs to the template notes, not to the retrospective Vault ADRs.
+The previous decision log has the date **2025-11-29 (Template initialization)**. It gives the original template design for the coordinator, transport client, platform directories, and entity descriptions.
 
-Coordinator-based reconciliation, separate transport clients and entity descriptions remain in the implementation. The template's platform-directory layout does not describe this integration: platforms use flat files. Its polling-only future consideration is superseded by the existing live event connection described in [ADR 0001](../adr/0001-polling-with-push-assisted-refresh.md).
+The integration uses a coordinator, separate transport clients, and entity descriptions. It uses one file for each entity platform. See [ADR 0001](../adr/0001-polling-with-push-assisted-refresh.md) for the live event connection and polling.
 
-The template's generic future ideas are not accepted Vault architecture decisions. Consult the [current overview](ARCHITECTURE.md) and owning source before proposing changes.
+Before you propose a change, read the [architecture overview](ARCHITECTURE.md) and the applicable source files.

@@ -1,110 +1,45 @@
-# GitHub Codespaces Development Guide
+# Develop in GitHub Codespaces
 
-Vault is fully compatible with GitHub Codespaces for cloud-based development.
+## Start a Codespace
 
-## Quick Start
+1. Open the Vault integration repository on GitHub.
+2. Click **Code**.
+3. Select **Codespaces**.
+4. Click **Create codespace on main**.
+5. Wait for the dev container setup to complete.
 
-### Initial Setup (Template Users)
+The dev container installs Python 3.14, Home Assistant, HACS, and VS Code extensions.
+See the [dev container settings](../../.devcontainer/devcontainer.json) for the package setup and port settings.
 
-1. Click "Code" → "Codespaces" → "Create codespace on main"
-2. Wait 2-3 minutes for automated setup
-3. **Run `./initialize.sh`** in the terminal to configure your integration
-4. Follow the prompts to customize your integration
-5. Start developing!
+## Start Home Assistant
 
-### Testing Copilot Agent Changes
+1. Open a terminal in the Codespace.
+2. Use `./script/develop` to start Home Assistant.
+3. Open **Ports** in VS Code.
+4. Open the forwarded address for port 8123.
 
-When testing a pull request created by GitHub Copilot Coding Agent:
+For local development, open `http://localhost:8123` after you start Home Assistant.
 
-1. Open the PR on GitHub
-2. Click "Code" → "Create codespace on `branch-name`"
-3. Run `./script/develop` to start Home Assistant
-4. Test the integration in the browser (port 8123 forwards automatically)
+## Use a pull request branch
 
-For the complete Copilot Agent workflow, see [COPILOT_AGENT.md](COPILOT_AGENT.md).
+1. Open the pull request on GitHub.
+2. Open **Code**.
+3. Create a Codespace for the pull request branch.
+4. [Start Home Assistant](#start-home-assistant).
+5. Do a test of the integration with a Vault server.
 
-## What Works Automatically
+See [Test a Copilot pull request](COPILOT_AGENT.md#test-a-copilot-pull-request).
 
-- ✅ Git configuration with your GitHub account
-- ✅ Port forwarding for Home Assistant (port 8123)
-- ✅ All VS Code extensions pre-installed
-- ✅ Python 3.13 environment with dependencies
-- ✅ Home Assistant + HACS ready to use
-- ✅ All development scripts work identically
+## Find Codespace problems
 
-## Key Differences from Local Development
+- If Python errors show while setup installs packages, wait for setup to complete.
+- If the errors remain, open the VS Code command palette. Select **Developer: Reload Window**.
+- If port 8123 is missing, open **Ports**. Select **Forward a Port**. Enter `8123`.
+- If the Codespace does not start, make sure that your GitHub account has Codespaces access.
 
-### Port Access
+Workspace files remain when you stop the Codespace. Stop the Codespace when you finish work.
 
-When running `script/develop`, Home Assistant starts on port 8123:
+## References
 
-- **Codespaces**: Forwarded URL with notification (e.g., `https://username-repo-xyz.github.dev`)
-- **Local**: Direct access at `http://localhost:8123`
-
-### Git Configuration
-
-- **Codespaces**: Automatically configured with your GitHub account
-- **Local**: Uses your host machine's `.gitconfig`
-
-### Performance
-
-- Runs on GitHub's cloud servers (usually fast)
-- 2-4 core machines available
-- 60 hours/month free for personal accounts
-- For intensive testing, consider upgrading or local development
-
-## Managing Resources
-
-### Save Your Free Hours
-
-- **Stop** your Codespace when not developing (Settings → Stop Codespace)
-- Auto-stops after 30 minutes of inactivity (default)
-- All work is saved when stopped!
-
-### Persistent Storage
-
-- Workspace files persist between stops/starts
-- Git changes are preserved
-- Home Assistant config and HACS persist
-
-### Multiple Projects
-
-Each repository gets its own Codespace - work on multiple integrations simultaneously without conflicts.
-
-## Troubleshooting
-
-### Many "Problems" showing after first Codespace build?
-
-When you first create a Codespace, VS Code's Python extensions (especially Pylance) need time to fully index the workspace. You may see many false "Problems" in the Problems panel that don't actually exist.
-
-**Solution:** Reload the VS Code window
-
-1. Press `F1` (or `Ctrl+Shift+P` / `Cmd+Shift+P`)
-2. Type: `Developer: Reload Window`
-3. Press Enter
-
-After the reload, the linters and language servers will be fully initialized and the false problems will disappear.
-
-> **Why does this happen?** When the Codespace is first created, setup runs in the background installing dependencies and configuring the Python environment. VS Code extensions start before this completes, leading to temporary false errors. A window reload ensures all extensions are properly initialized.
->
-> **This is normal!** This only happens on first creation - subsequent connections work perfectly.
-
-### Codespace Won't Start
-
-- Verify Codespaces is enabled for your account
-- Check available hours (Settings → Billing)
-
-### Port 8123 Not Forwarding
-
-- Check "Ports" tab in VS Code terminal panel
-- Manually forward if needed: Right-click → "Forward Port"
-
-### Git Push Authentication
-
-- Codespaces uses GitHub authentication automatically
-- If prompted, choose "GitHub" as method
-
-## Resources
-
-- [GitHub Codespaces Documentation](https://docs.github.com/en/codespaces)
-- [Codespaces Pricing](https://docs.github.com/en/billing/managing-billing-for-github-codespaces/about-billing-for-github-codespaces)
+- [GitHub Codespaces documentation](https://docs.github.com/en/codespaces)
+- [Codespaces billing](https://docs.github.com/en/billing/managing-billing-for-github-codespaces/about-billing-for-github-codespaces)

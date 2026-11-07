@@ -1,191 +1,57 @@
 # Getting Started with Vault
 
-This guide will help you install and set up the Vault custom integration for Home Assistant.
+Use this guide to install Vault in Home Assistant and connect it to your Unraid server.
 
 ## Prerequisites
 
-- Home Assistant 2025.7.0 or newer
-- HACS (Home Assistant Community Store) installed
-- Network connectivity to [external service/device]
+- Home Assistant 2026.6.0 or later.
+- A Vault server that Home Assistant can connect to.
+- HACS (Home Assistant Community Store) 2.0.5 or later for HACS installation.
 
-## Installation
+## Install with HACS
 
-### Via HACS (Recommended)
+1. Open the [Vault repository in HACS](https://my.home-assistant.io/redirect/hacs_repository/?owner=tinkerologie&repository=ha-vault&category=integration).
+2. Click **Download**.
+3. Restart Home Assistant.
 
-1. Open HACS in your Home Assistant instance
-2. Go to "Integrations"
-3. Click the three dots in the top right corner
-4. Select "Custom repositories"
-5. Add this repository URL: `https://github.com/tinkerologie/ha-vault`
-6. Set category to "Integration"
-7. Click "Add"
-8. Find "Vault" in the integration list
-9. Click "Download"
-10. Restart Home Assistant
+## Install manually
 
-### Manual Installation
+1. Download `vault.zip` from the [latest release](https://github.com/tinkerologie/ha-vault/releases/latest).
+2. Extract the files into `custom_components/vault/` in your Home Assistant configuration directory.
+3. Make sure that `manifest.json` is directly in the `vault` directory.
+4. Restart Home Assistant.
 
-1. Download the latest release from the [releases page](https://github.com/tinkerologie/ha-vault/releases)
-2. Extract the `vault` folder from the archive
-3. Copy it to `custom_components/vault/` in your Home Assistant configuration directory
-4. Restart Home Assistant
+## Connect to Vault
 
-## Initial Setup
+If Home Assistant finds Vault on the network, open the Vault entry under **Settings** → **Devices & Services**.
+If Home Assistant shows **Confirm Vault Discovery**, enter the key in **API Key**. Click **Submit**.
 
-After installation, add the integration:
+To add Vault without network discovery, do these steps.
 
-1. Go to **Settings** → **Devices & Services**
-2. Click **+ Add Integration**
-3. Search for "Vault"
-4. Follow the configuration steps:
+1. Open **Settings** → **Devices & Services**.
+2. Click **Add Integration**.
+3. Select **Vault**.
+4. Enter the host name or IP address of the Unraid server in **Host**.
+5. Enter the Vault API port in **Port**. The default is `24085`.
+6. If the Vault endpoint uses HTTPS, enable **Use TLS (HTTPS)**.
+7. Click **Submit**.
 
-### Step 1: Connection Information
+If Home Assistant shows **Authentication Required**, enter the Vault API key. Click **Submit**.
 
-Enter the required connection details:
+## Make sure that Vault is online
 
-- **Host/IP Address:** The hostname or IP address of your device/service
-- **API Key/Token:** Your authentication credentials (if applicable)
-- **Port:** Connection port (default: 8080)
+1. Open the Vault entry under **Settings** → **Devices & Services**.
+2. Open the Vault device.
+3. Make sure that the **Online** binary sensor shows **Connected**.
 
-Click **Submit** to test the connection.
+Home Assistant shows entities for the Vault server, its backup jobs, and its storage destinations.
 
-### Step 2: Configuration Options
+## Find connection errors
 
-Configure optional settings:
+1. Make sure that Vault is running on the Unraid server.
+2. Make sure that Home Assistant can connect to the Vault host and port.
+3. If Vault uses API key authentication, make sure that the key is correct.
+4. Read the Vault messages under **Settings** → **System** → **Logs**.
 
-- **Update Interval:** How often to poll for updates (default: 5 minutes)
-- **Name:** Friendly name for this integration instance
-
-Click **Submit** to complete setup.
-
-## What Gets Created
-
-After successful setup, the integration creates:
-
-### Devices
-
-- **Device Name:** Main device representing your connected service/hardware
-  - Model information
-  - Software version
-  - Configuration URL (link to device web interface)
-
-### Entities
-
-The following entities are automatically created:
-
-#### Sensors
-
-- `sensor.<device_name>_<sensor_name>` - Descriptive sensor measurements
-- More sensors as applicable to your setup
-
-#### Binary Sensors
-
-- `binary_sensor.<device_name>_<sensor_name>` - On/off status indicators
-
-#### Switches
-
-- `switch.<device_name>_<switch_name>` - Controllable on/off switches
-
-#### Other Platforms
-
-Additional entities may be created depending on your device capabilities.
-
-## First Steps
-
-### Dashboard Cards
-
-Add entities to your dashboard:
-
-1. Go to your dashboard
-2. Click **Edit Dashboard** → **Add Card**
-3. Choose card type (e.g., "Entities", "Glance")
-4. Select entities from "Vault"
-
-Example entities card:
-
-```yaml
-type: entities
-title: Vault
-entities:
-  - sensor.device_name_sensor
-  - binary_sensor.device_name_connectivity
-  - switch.device_name_switch
-```
-
-### Automations
-
-Use the integration in automations:
-
-**Example - Trigger on sensor change:**
-
-```yaml
-automation:
-  - alias: "React to sensor value"
-    trigger:
-      - trigger: state
-        entity_id: sensor.device_name_sensor
-    action:
-      - action: notify.notify
-        data:
-          message: "Sensor changed to {{ trigger.to_state.state }}"
-```
-
-**Example - Control switch based on time:**
-
-```yaml
-automation:
-  - alias: "Turn on in morning"
-    trigger:
-      - trigger: time
-        at: "07:00:00"
-    action:
-      - action: switch.turn_on
-        target:
-          entity_id: switch.device_name_switch
-```
-
-## Troubleshooting
-
-### Connection Failed
-
-If setup fails with connection errors:
-
-1. Verify the host/IP address is correct and reachable
-2. Check that the API key/token is valid
-3. Ensure no firewall is blocking the connection
-4. Check Home Assistant logs for detailed error messages
-
-### Entities Not Updating
-
-If entities show "Unavailable" or don't update:
-
-1. Check that the device/service is online
-2. Verify API credentials haven't expired
-3. Review logs: **Settings** → **System** → **Logs**
-4. Try reloading the integration
-
-### Debug Logging
-
-Enable debug logging to troubleshoot issues:
-
-```yaml
-logger:
-  default: warning
-  logs:
-    custom_components.vault: debug
-```
-
-Add this to `configuration.yaml`, restart, and reproduce the issue. Check logs for detailed information.
-
-## Next Steps
-
-- See [CONFIGURATION.md](./CONFIGURATION.md) for detailed configuration options
-- See [EXAMPLES.md](./EXAMPLES.md) for more automation examples
-- Report issues at [GitHub Issues](https://github.com/tinkerologie/ha-vault/issues)
-
-## Support
-
-For help and discussion:
-
-- [GitHub Discussions](https://github.com/tinkerologie/ha-vault/discussions)
-- [Home Assistant Community Forum](https://community.home-assistant.io/)
+See [Configuration Reference](CONFIGURATION.md) for connection settings and dashboard cards.
+See [Automations](AUTOMATIONS.md) for examples of Home Assistant actions.

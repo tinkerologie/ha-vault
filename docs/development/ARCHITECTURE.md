@@ -11,21 +11,25 @@ Vault Connection
 Home Assistant entity registry -> Entity Map -> Vault cards
 ```
 
-[Integration setup](../../custom_components/vault/__init__.py) registers actions, creates the clients and coordinator using Home Assistant's shared HTTP session, performs the first refresh and stores typed runtime state in `entry.runtime_data`. It connects the live event listener and forwards the sensor, binary sensor, button and event platforms. Unload disconnects the event client after platform unloading succeeds.
+[Integration setup](../../custom_components/vault/__init__.py) registers actions. It creates the clients and coordinator with Home Assistant's HTTP session. It requests the first data update and stores runtime state in `entry.runtime_data`. It connects the event listener and loads the sensor, binary sensor, button, and event platforms. On unload, it disconnects the event client after it unloads the platforms.
 
 ## State and transport ownership
 
-The [REST client](../../custom_components/vault/api/client.py) owns authenticated requests and transport errors; [models](../../custom_components/vault/api/models.py) describe upstream payloads. The [coordinator](../../custom_components/vault/coordinator.py) aggregates server, storage, Job, history, Restore Point and coverage data, bounds per-Job request concurrency and adjusts polling while work is active.
+The [REST client](../../custom_components/vault/api/client.py) sends authenticated HTTP requests and handles transport errors. The [models](../../custom_components/vault/api/models.py) give the structure of the Vault API data.
 
-The [live event client](../../custom_components/vault/api/websocket.py) reconnects and dispatches events. Setup listeners update runtime progress, translate backup and restore events separately, and request debounced polling refreshes for state changes. The polling snapshot and live progress are complementary; live events do not replace reconciliation.
+The [coordinator](../../custom_components/vault/coordinator.py) collects server, storage, job, history, restore point, and coverage data. It limits the number of job requests at the same time. It polls more frequently during an active backup or restore.
 
-[Run selection](../../custom_components/vault/runs.py) distinguishes Backup Runs from Restore Runs in mixed history. Backup sensors must not count restores as backup success or treat partial backups as complete protection. Available history is bounded, so derived latest/last-success values describe the history fetched, not a complete archive.
+The [live event client](../../custom_components/vault/api/websocket.py) reconnects and dispatches events. Setup listeners update runtime progress, translate backup and restore events separately, and request debounced polling refreshes for state changes. Polling also corrects the snapshot after missed events.
+
+[Run selection](../../custom_components/vault/runs.py) distinguishes Backup Runs from Restore Runs in mixed history. Backup sensors must not count restores as backup success or treat partial backups as complete protection. Vault gives a limited set of history records. The integration calculates the latest backup values from these records.
 
 ## Entities, actions and cards
 
-[Base entities](../../custom_components/vault/entity.py) share a server device per connection. Entity unique IDs use entry-scoped stable role/object keys; user-facing names and Entity IDs can change. Platform properties read coordinator/runtime state. User actions use the client to request backup, restore or Destination testing; with multiple connections, global actions require an explicit configuration entry selection.
+[Base entities](../../custom_components/vault/entity.py) share a server device per connection. Entity unique IDs use stable keys for roles and objects in each entry. The displayed names and entity IDs can change. Platform properties read coordinator/runtime state. The client sends requests for backups, restores, and destination tests. If there are multiple connections, global actions need an explicit configuration entry.
 
-The [Home Assistant WebSocket command](../../custom_components/vault/websocket_api.py) provides `vault/entity_map`, resolving roles through the entity registry. This is separate from the daemon event connection. [Card source](../../frontend/src/) consumes that map and entity state, allowing user renames without inferring identities from names; card restore links open Vault's UI, while the integration also exposes a restore action.
+The [Home Assistant WebSocket command](../../custom_components/vault/websocket_api.py) provides `vault/entity_map`. It uses the entity registry to find entity IDs by role. This command uses a separate connection from the Vault event stream.
+
+The [cards](../../frontend/src/) use the entity map to read entity states after a name change. The restore links open the Vault UI. The integration also provides a restore action.
 
 ## Maintainer navigation
 
@@ -35,4 +39,4 @@ The [Home Assistant WebSocket command](../../custom_components/vault/websocket_a
 - [HACS metadata](../../hacs.json) and [manifest](../../custom_components/vault/manifest.json): compatibility and dependencies.
 - [Agent instructions](../../AGENTS.md): development scripts and contribution workflow.
 
-Generated card assets live under `custom_components/vault/frontend/`; edit TypeScript source and use the frontend build when changing behavior. Documentation-only changes do not require rebuilding those assets.
+The frontend build puts the card files in `custom_components/vault/frontend/`. To change card behavior, edit the TypeScript source. Build the frontend again after a card change.

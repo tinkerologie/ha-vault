@@ -1,154 +1,35 @@
-# Dependencies Overview
+# Dependencies
 
-This custom integration uses multiple requirements files to separate different types of dependencies:
+## Runtime dependencies
 
-## 📁 Files
+Home Assistant installs the Python packages in the `requirements` field of the [integration manifest](custom_components/vault/manifest.json).
+The integration lists `pydantic>=2.0` in this field.
 
-### `requirements.txt` - Runtime Dependencies
+`requirements.txt` is for integration packages that the development environment must install separately.
+The file has no package entries at this time.
+If you add a runtime package that Home Assistant does not already install, add it to the manifest and to `requirements.txt`.
 
-**Purpose:** Python packages needed by the integration at runtime
-**Installed by:** Home Assistant when loading the integration
-**Also defined in:** `custom_components/vault/manifest.json`
+## Development dependencies
 
-**Note:** This file is typically empty if this integration has no additional runtime dependencies beyond Home Assistant core.
+Use `script/setup/bootstrap` to install the development packages.
 
-**Example:**
+- `requirements_dev.txt` lists development packages, such as Pyright and Colorlog.
+- `requirements_test.txt` is for test packages that are specific to this integration.
+- The bootstrap script also installs packages from the Home Assistant Core requirements files.
 
-```txt
-aiohttp>=3.8.0
-async-timeout>=4.0.0
-```
+Home Assistant Core supplies pytest, Ruff, and other development tools.
+The bootstrap script and `script/test` install the official `pytest-homeassistant` plugin.
+The plugin version must match the Home Assistant version.
+See the [test harness settings](script/.lib/ha-test-harness.sh) and the [test setup procedure](CONTRIBUTING.md#prerequisites-and-setup).
 
-### `requirements_dev.txt` - Development Tools
+## Home Assistant version
 
-**Purpose:** Additional development tools beyond what Home Assistant core provides
-**Installed by:** `script/setup/bootstrap`
-**Used by:** Developers, IDEs
+The bootstrap script uses the Home Assistant version in the test harness by default.
+The [dev container](.devcontainer/devcontainer.json) sets `HA_VERSION` to `latest`.
+This value selects the most recent stable release available from PyPI.
+To select a different version, set `HA_VERSION` to that version before you start the bootstrap script.
 
-**Includes:**
+## HACS requirements
 
-- `pyright` - Type checker (we prefer pyright over HA's mypy for better IDE integration)
-- `colorlog` - Colored logging for development scripts
-- Performance tools (`zlib_ng`, `isal`) - Optional optimization packages
-
-**Note:** Most development tools (ruff, pre-commit, codespell, pylint) are already provided by Home Assistant core's `requirements_test.txt` and `requirements_test_pre_commit.txt`, which are installed automatically via `script/setup/bootstrap`.
-
-### `requirements_test.txt` - Testing Framework
-
-**Purpose:** Additional testing tools beyond what Home Assistant core provides
-**Installed by:** `script/setup/bootstrap`
-**Used by:** Test runners, CI/CD
-
-**Includes:**
-
-- `pytest-homeassistant` - Home Assistant's official test plugin (fixtures and utilities), pinned to the tested Home Assistant release
-
-**Note:** Core testing tools (pytest, pytest-asyncio, pytest-aiohttp, pytest-cov, pytest-timeout, pytest-xdist, coverage, freezegun, requests-mock, respx) are already provided by Home Assistant core's `requirements_test.txt`, which is installed automatically via `script/setup/bootstrap`.
-
-## 🔄 Relationship with manifest.json
-
-### manifest.json `requirements` field
-
-```json
-{
-  "requirements": ["aiohttp>=3.8.0"]
-}
-```
-
-- ✅ Runtime dependencies for end users
-- ✅ Automatically installed by Home Assistant
-- ✅ Should match `requirements.txt` content
-- ℹ️ **Optional:** If this integration doesn't need additional packages beyond Home Assistant core, you can omit this field
-
-### When to add dependencies
-
-| Add to | When |
-|--------|------|
-| `manifest.json` + `requirements.txt` | Runtime dependency (end users need it) |
-| `requirements_dev.txt` | Development tool (linting, formatting, type checking) |
-| `requirements_test.txt` | Testing tool (pytest plugins, test utilities) |
-
-## 📝 Maintenance
-
-When you add a runtime dependency:
-
-1. ✅ Add to `manifest.json` `requirements` field
-2. ✅ Add to `requirements.txt` (same version constraint)
-3. ❌ Don't add to `requirements_dev.txt` or `requirements_test.txt`
-
-**Example:**
-
-```json
-// manifest.json
-{
-  "requirements": ["aiohttp>=3.8.0"]
-}
-```
-
-```txt
-# requirements.txt
-aiohttp>=3.8.0
-```
-
-## 🚀 Bootstrap Script
-
-The `script/setup/bootstrap` automatically installs dependencies from multiple sources:
-
-### From Home Assistant Core
-
-**Version:** Configured via `HA_VERSION` in `.devcontainer/devcontainer.json` (currently `2025.12.3`)
-
-1. **Runtime dependencies** (`requirements_all.txt`)
-   - All packages that Home Assistant integrations might need
-   - Includes aiohttp, async-timeout, and hundreds of other packages
-
-2. **Test dependencies** (`requirements_test.txt`)
-   - pytest and all pytest plugins (pytest-asyncio, pytest-aiohttp, pytest-cov, pytest-timeout, pytest-xdist)
-   - Testing utilities (coverage, freezegun, requests-mock, respx)
-   - mypy-dev for type checking (we use pyright instead)
-
-3. **Pre-commit dependencies** (`requirements_test_pre_commit.txt`)
-   - ruff (linting and formatting)
-   - codespell (spell checking)
-   - pre-commit (hook framework)
-   - pylint (linting)
-
-4. **Home Assistant core** (`homeassistant==$HA_VERSION`)
-   - The full Home Assistant installation
-
-### From This Project
-
-- `requirements_dev.txt` - Additional development tools this project uses (pyright, colorlog, performance packages)
-- `requirements_test.txt` - Custom component testing utilities
-- `requirements.txt` - This integration's runtime dependencies (if any)
-
-This approach means this project only needs to maintain a minimal set of dependencies that are specific to this integration, while leveraging the comprehensive dependency management from Home Assistant core.
-
-## 🔍 hacs.json vs manifest.json
-
-### hacs.json
-
-```json
-{
-  "name": "Integration Name",
-  "homeassistant": "2025.11.0",
-  "hacs": "2.0.5"
-}
-```
-
-- ❌ **No Python dependencies** - only metadata
-- ✅ Minimum Home Assistant version
-- ✅ Minimum HACS version
-
-### manifest.json
-
-```json
-{
-  "requirements": ["package>=1.0.0"]
-}
-```
-
-- ✅ **Python package dependencies**
-- ✅ Installed by Home Assistant
-
-**No duplication needed!** `hacs.json` only contains version constraints for HA/HACS, not Python packages.
+[hacs.json](hacs.json) gives the minimum supported Home Assistant and HACS versions.
+The integration manifest gives the Python package requirements.

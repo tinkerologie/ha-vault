@@ -1,8 +1,8 @@
 # Architecture decisions
 
-These retrospective records describe existing architecture verified against source `cd0650e3` on 2026-11-07. They record current behavior and source-supported trade-offs, not original decision dates or new approvals.
+These records give architecture decisions from the implementation at `cd0650e3`. The source check was on 2026-11-07.
 
-See the [glossary](../../GLOSSARY.md), [architecture overview](../development/ARCHITECTURE.md) and [historical template notes](../development/DECISIONS.md). Record superseding decisions in new, linked ADRs.
+See the [glossary](../../GLOSSARY.md), [architecture overview](../development/ARCHITECTURE.md) and [historical template notes](../development/DECISIONS.md). Put each change to an architecture decision in a new ADR. Add a link to the previous ADR.
 
 - [0001: Reconcile polling state with live events](0001-polling-with-push-assisted-refresh.md)
 

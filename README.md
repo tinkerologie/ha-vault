@@ -1,70 +1,70 @@
 # Vault Backup Integration for Home Assistant
 
 <!-- BADGES:START -->
+
 [![Marketplace and HACS](https://img.shields.io/badge/Marketplace%20%7C%20HACS-Default-orange.svg)](https://www.hacs.xyz/docs/marketplace/)
 [![GitHub Last Commit](https://img.shields.io/github/last-commit/tinkerologie/ha-vault)](https://github.com/tinkerologie/ha-vault/commits/main)
 [![GitHub Release](https://img.shields.io/github/v/release/tinkerologie/ha-vault)](https://github.com/tinkerologie/ha-vault/releases)
 [![codecov](https://codecov.io/gh/tinkerologie/ha-vault/graph/badge.svg)](https://codecov.io/gh/tinkerologie/ha-vault)
 [![License](https://img.shields.io/github/license/tinkerologie/ha-vault)](./LICENSE)
+
 <!-- BADGES:END -->
 
-**Develop in the cloud:** Want to contribute or customize this integration? Open it directly in GitHub Codespaces - no local setup required.
+Use GitHub Codespaces to develop the integration in your browser.
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/tinkerologie/ha-vault?quickstart=1)
 
 ## Features
 
-- **Easy Setup**: Simple configuration through the UI - no YAML required
-- **Backup Job Monitoring**: Track status and progress of all your backup jobs
-- **Real-time Updates**: WebSocket connection for instant status updates
-- **Job Control**: Run backup jobs on-demand with button entities or service calls
-- **Restore Capability**: Restore backups directly from Home Assistant
-- **Storage Management**: Test storage destinations and monitor health
-- **Encryption Support**: Track encryption status and manage encrypted backups
-- **Diagnostic Info**: View Vault version, job statistics, and system health
-- **Coverage and schedule**: See which containers, VMs and folders aren't backed up yet, and when the next backup runs
-- **Dashboard cards**: Status, jobs, activity, storage, anomalies and 3-2-1 cards that follow your theme and language (see [Dashboard cards](docs/user/CONFIGURATION.md#dashboard-cards))
-- **Reconfigurable**: Change connection settings anytime without removing the integration
+- Add the integration in the Home Assistant UI.
+- See the status and progress of backup jobs.
+- Start backup jobs with buttons or actions.
+- Restore a backup item with an action.
+- Do a test of a storage destination and see its health status.
+- See which containers, VMs, and folders have a restore point.
+- See the time of the next scheduled backup.
+- Use the [Vault dashboard cards](docs/user/CONFIGURATION.md#dashboard-cards).
 
-**This integration will set up the following platforms.**
+The integration uses WebSocket events for progress updates.
 
-| Platform        | Description                                                       |
-| --------------- | ----------------------------------------------------------------- |
-| `sensor`        | Vault status, version, job statistics, per-job status and metrics |
-| `binary_sensor` | Connection status, per-job running state and success indicators   |
-| `button`        | Run backup jobs on-demand (one button per job)                    |
+| Platform        | Description                                         |
+| --------------- | --------------------------------------------------- |
+| `sensor`        | Server, storage, and backup job data                |
+| `binary_sensor` | Connection, job activity, and backup success states |
+| `button`        | One button for each backup job                      |
+| `event`         | Backup, restore, and missing-item events            |
 
 ## Quick Start
 
 ### Prerequisites
 
-- **Vault Server**: You must have a Vault backup server running and accessible from Home Assistant
-- **API Access**: You'll need the host, port (default: 24085), and API key for your Vault instance
-- **HACS**: This integration requires [HACS](https://hacs.xyz/) (Home Assistant Community Store) to be installed
+- A Vault server that Home Assistant can connect to.
+- The Vault host name or IP address and the API port (default `24085`).
+- A Vault API key if Vault uses API key authentication.
+- Home Assistant 2026.6.0 or later.
+- HACS 2.0.5 or later if you install with HACS.
 
 ### Step 1: Install the Integration
 
-Click the button below to open the integration directly in HACS:
+Click the HACS button to open the My Home Assistant page.
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=tinkerologie&repository=ha-vault&category=integration)
 
-Then:
-
-1. Click "Download" to install the integration
-2. **Restart Home Assistant** (required after installation)
-
-> **Note:** The My Home Assistant redirect will first take you to a landing page. Click the button there to open your Home Assistant instance.
+1. Click the button on the My Home Assistant page to open the Vault repository in HACS.
+2. Click **Download**.
+3. Restart Home Assistant.
 
 <details>
 <summary>**Manual Installation (Advanced)**</summary>
 
-If you prefer not to use HACS:
+1. Download `vault.zip` from the [latest release](https://github.com/tinkerologie/ha-vault/releases/latest).
+2. Extract it to `custom_components/vault/` in your Home Assistant configuration directory.
+3. Make sure that `manifest.json` is directly in the `vault` directory.
+4. Restart Home Assistant.
 
-1. Download `vault.zip` from the latest release on the [Releases page](https://github.com/tinkerologie/ha-vault/releases)
-2. Create the folder `config/custom_components/vault/` and extract the zip into it. `manifest.json` must end up directly in that folder
-3. Restart Home Assistant
+The release includes `vault.zip`, `SHA256SUMS`, and a signed build attestation. The Marketplace and HACS install the same ZIP. The download count is for the ZIP in the latest release.
 
-Each release since the first one that ships `vault.zip` carries the zip, a `SHA256SUMS` file and a signed build provenance attestation. HACS and the Home Assistant Marketplace install the same zip. The "Downloaded N times" figure they show is the download count of the latest release's zip, so it starts again with each release. To check that a zip you downloaded is the one the release workflow built, run this in the folder that holds both files:
+To do a check of the ZIP, use these commands in the directory with `vault.zip` and `SHA256SUMS`.
 
 ```bash
 gh attestation verify vault.zip -R tinkerologie/ha-vault
@@ -77,141 +77,109 @@ On macOS, use `shasum -a 256 -c SHA256SUMS`.
 
 ### Step 2: Add and Configure the Integration
 
-**Important:** You must have installed the integration first (see Step 1) and restarted Home Assistant!
+Before you add the integration, complete Step 1.
 
 #### Option 1: One-Click Setup (Quick)
 
-Click the button below to open the configuration dialog:
+Click the My Home Assistant button to open the configuration dialog.
 
 [![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=vault)
 
-Follow the setup wizard:
-
-1. Enter your Vault server **host** (e.g., `vault.local` or `192.168.1.100`)
-2. Enter the **port** (default: `24085`)
-3. Enter your **API key** (if authentication is required)
-4. Enable **TLS** if your Vault server uses HTTPS
-5. Click Submit
-
-The integration will connect to your Vault server and start monitoring your backup jobs.
+1. Enter the Vault host name or IP address in **Host**.
+2. Enter the API port in **Port**. The default is `24085`.
+3. If the Vault endpoint uses HTTPS, enable **Use TLS (HTTPS)**.
+4. Click **Submit**.
+5. If Home Assistant shows **Authentication Required**, enter the key in **API Key**.
+6. If you entered a key, click **Submit** again.
 
 #### Option 2: Manual Configuration
 
-1. Go to **Settings** -> **Devices & Services**
-2. Click **"+ Add Integration"**
-3. Search for "Vault"
-4. Follow the same setup steps as Option 1
+1. Open **Settings** → **Devices & Services**.
+2. Click **Add Integration**.
+3. Select **Vault**.
+4. Use the same connection settings as in Option 1.
 
-### Step 3: Verify Connection
+### Step 3: Do a Connection Check
 
-After setup, check that the integration is working:
+1. Open the Vault entry under **Settings** → **Devices & Services**.
+2. Open the Vault device.
+3. Make sure that the **Online** binary sensor shows **Connected**.
 
-1. Go to **Settings** -> **Devices & Services** -> **Vault**
-2. You should see sensors for:
-   - Vault Status (should show "ok" or "healthy")
-   - Vault Online (binary sensor - should be "On")
-3. If you have backup jobs configured, you'll see entities for each job
-
-### Step 4: Start Using!
-
-The integration creates entities for monitoring and controlling your Vault backup system:
-
-- **Global Sensors**: Vault status, version, job counts, encryption status
-- **Per-Job Sensors**: Job status, last run time, backup size, duration, etc.
-- **Per-Storage Sensors**: Storage destination name and type
-- **Global Binary Sensors**: Connection status
-- **Per-Job Binary Sensors**: Running state, last success indicator
-- **Per-Job Buttons**: Run backup job on-demand
-
-Find all entities in **Settings** -> **Devices & Services** -> **Vault** -> click on the device.
+The Vault device also shows entities for its backup jobs and storage destinations.
+See [Getting Started](docs/user/GETTING_STARTED.md) for installation and connection troubleshooting.
 
 ## Available Entities
 
 ### Global Sensors
 
-These sensors provide information about your Vault instance:
+These sensors give information about the Vault server.
 
-- **Vault Status**: Current health status of the Vault service
-  - States: `ok`, `healthy`, `running`, or error states
-- **Vault Version** (Diagnostic): Version of the Vault server
-- **Jobs Total** (Diagnostic): Total number of backup jobs configured
-  - Disabled by default - enable in entity settings if needed
-- **Jobs Enabled** (Diagnostic): Number of enabled backup jobs
-  - Disabled by default - enable in entity settings if needed
-- **Encryption Status** (Diagnostic): Whether encryption is enabled
-  - States: `enabled` or `disabled`
-  - Disabled by default - enable in entity settings if needed
-- **Next Backup**: When the next scheduled backup of an enabled job starts; the `job_name` attribute names the job
-  - Vault reports schedule times in the Unraid server's time zone without an offset; the integration reads them in Home Assistant's time zone, so keep both on the same zone
-- **Protected Items**: Containers, VMs and folders that are in at least one restore point, counted the way Vault's dashboard counts them
-- **Unprotected Items**: Items that aren't in any restore point yet, including items no job covers
-  - Attributes: `pending_items` (in a job but waiting for their first backup) and `items` (up to 50 names)
-  - Unavailable when Vault can't list containers or VMs, so the count is never guessed
-- **Destinations In Use**: Storage destinations that enabled jobs have backed up to, for checking the 3-2-1 rule
-  - Attributes: `media_types`, `remote_destinations` (any non-local destination; Vault doesn't know where a share physically is) and `destinations`
-- **Runner Active Job** (Diagnostic): The job Vault is running, or `idle`; the `run_type` attribute says `backup` or `restore`
+- **Status** shows the Vault service health status.
+  - Vault can give `ok`, `healthy`, `running`, or error states.
+- **Version** is the Vault server version.
+- **Total jobs** is the number of backup jobs. Home Assistant disables this diagnostic sensor by default.
+- **Enabled jobs** is the number of enabled backup jobs. Home Assistant disables this diagnostic sensor by default.
+- **Encryption status** is `enabled` or `disabled`. Home Assistant disables this diagnostic sensor by default.
+- **Next backup** gives the start time of the next scheduled backup. The `job_name` attribute gives the job name.
+  - Vault gives schedule times in the Unraid time zone without an offset. Home Assistant reads those times in its own time zone. Set both systems to the same time zone.
+- **Protected items** gives the number of containers, VMs, and folders with at least one restore point. This is the same count as in the Vault dashboard.
+- **Unprotected items** gives the number of items without a restore point. This includes items outside a backup job.
+  - The `pending_items` attribute gives the number of items in a job that wait for their first backup. The `items` attribute shows a maximum of 50 names.
+  - If Vault cannot get the list of containers or VMs, the sensor is unavailable.
+- **Destinations in use** gives the number of storage destinations with a backup from an enabled job. Use this sensor for the 3-2-1 rule.
+  - The attributes are `media_types`, `remote_destinations`, and `destinations`. Vault counts each network destination as remote.
+- **Runner active job** gives the active job name, or `idle` if there is no active job. If the job name is unknown, the sensor shows the ID. The `run_type` attribute is `backup` or `restore`.
 
 ### Per-Job Sensors
 
-For each backup job configured in Vault, the integration creates sensors to monitor that job:
+The integration adds these sensors for each backup job. Each entity name starts with the job name.
 
-- **Job Status**: Status of the job's latest backup, or `restoring` while a restore from it runs
-  - States: `idle` (never run), `running`, `restoring`, `completed`, `partial`, `failed`, `skipped`, `cancelled`
-  - Attributes: `enabled` and `schedule`
-  - Restore runs never change the job's backup sensors (status, last run, size, duration, items)
-- **Next Run**: When the job's next scheduled backup starts (unknown for disabled or unscheduled jobs)
-- **Last Run** (Diagnostic): Timestamp of the last backup run
-- **Last Run Duration** (Diagnostic): How long the last backup took (in seconds)
-- **Last Backup Size** (Diagnostic): Size of the last backup (in bytes/MB/GB)
-- **Items Backed Up**: Number of items successfully processed in the latest run
-- **Items Failed**: Number of failed items in the latest run
-- **Restore Points** (Diagnostic): Current restore point count for this job
-- **Last Failure Reason** (Diagnostic): Parsed failure reason from the latest non-successful run
-- **Progress**: Completion percentage of the running backup or restore (0-100%), from the items done and the current item's progress
+- **Status** gives the status of the most recent backup. It shows `restoring` during an active restore.
+  - The states are `idle`, `running`, `restoring`, `completed`, `partial`, `failed`, `skipped`, and `cancelled`.
+  - The attributes are `enabled` and `schedule`.
+- **Next run** gives the time of the next scheduled backup. The time is unknown if the job is disabled or has no schedule.
+- **Last run** gives the end time of the most recent finished backup.
+- **Last duration** gives the duration of that backup. Use the `duration_seconds` attribute to get the duration in seconds.
+- **Last size** gives the size of that backup.
+- **Items backed up** gives the number of items that backup protected.
+- **Items failed** gives the number of items that had an error during that backup.
+- **Restore points** gives the number of restore points for the job.
+- **Last failure reason** gives the failure reason from the most recent finished backup, or `No failures`.
+- **Progress** gives the percentage complete for an active backup or restore.
 
 ### Global Binary Sensors
 
-- **Vault Online**: Connection status to the Vault server
-  - On: Connected and receiving data from Vault API
-  - Off: Connection lost or authentication failed
-  - Device class: Connectivity
-  - Shows last update time and connection details
+- **Online** is `on` when Vault gives a health status of `ok`, `healthy`, or `running`. The device class is Connectivity.
+  - If Home Assistant cannot get data from Vault, the sensor is unavailable.
 
 ### Per-Job Binary Sensors
 
-For each backup job, the integration creates binary sensors:
+The integration adds these binary sensors for each backup job.
 
-- **Job Running**: Indicates whether the job is running a backup or a restore
-  - On: Job is actively running; the `run_type` attribute says `backup` or `restore`
-  - Off: Job is idle or completed
-  - Device class: Running
-- **Last Success**: Indicates whether the job's last finished backup completed successfully
-  - On: Last backup completed successfully (restores don't change it)
-  - Off: Last backup failed or no runs yet
+- **Running** is `on` during an active backup or restore. The `run_type` attribute is `backup` or `restore`. The device class is Running.
+- **Last run successful** is `on` when the most recent finished backup has status `completed`. A restore does not change this state.
+- **Problem** is `on` when Vault has an open anomaly for the job.
 
 ### Per-Job Buttons
 
-For each backup job, the integration creates a button:
-
-- **Run Now**: Trigger an immediate backup run for this job
-  - Press to start the backup job via the Vault API
-  - Real-time progress updates via WebSocket
-  - Coordinator refreshes automatically after triggering
+Use the **Run backup** button to start a backup for the job. Home Assistant uses WebSocket events to update the progress.
 
 ### Per-Storage Sensors
 
-For each configured storage destination, the integration creates sensors:
+The integration adds these sensors for each storage destination. Each entity name starts with `Storage` and the destination name.
 
-- **Storage Name** (Diagnostic): Display name of the storage destination
-- **Storage Type** (Diagnostic): Backend type (for example, local, SMB, S3)
+- **Name** gives the destination name.
+- **Type** gives the destination type (for example, local, SMB, or S3).
+- **Health** gives the health status.
+- **Free space**, **Used space**, and **Total space** give the capacity data.
 
 ## Custom Services
 
-The integration provides powerful services for backup management and automation:
+Use these actions in Home Assistant automations.
 
 ### `vault.run_backup`
 
-Trigger an immediate backup run for a specific Vault job. You can specify the job by ID or name.
+Start a Vault backup job by its ID or name.
 
 **Parameters:**
 
@@ -219,7 +187,7 @@ Trigger an immediate backup run for a specific Vault job. You can specify the jo
 - `job_name` (optional): The name of the backup job to run
 - `config_entry_id` (optional): Target Vault config entry ID (required only when multiple Vault instances are configured)
 
-> **Note:** Provide either `job_id` or `job_name`, not both.
+Use one of `job_id` and `job_name`.
 
 **Example using job ID:**
 
@@ -248,16 +216,16 @@ data:
 
 ### `vault.restore`
 
-Restore an item from a Vault backup restore point. This allows you to restore containers, VMs, or folders directly from Home Assistant.
+Restore a container, VM, or folder from a Vault restore point.
 
 **Parameters:**
 
-- `job_id` (required): The job ID that created the restore point
+- `job_id` (required) is the ID of the job that made the restore point.
 - `restore_point_id` (required): The ID of the restore point to restore from
 - `item_name` (required): Name of the item to restore (container name, VM name, or folder)
 - `item_type` (required): Type of item - `container`, `vm`, or `folder`
 - `passphrase` (optional): Encryption passphrase if the backup was encrypted
-- `destination` (optional): Override the default restore destination path
+- `destination` (optional) is the path to use in place of the default path.
 - `config_entry_id` (optional): Target Vault config entry ID (required only when multiple Vault instances are configured)
 
 **Example restoring a container:**
@@ -286,7 +254,7 @@ data:
 
 ### `vault.test_storage`
 
-Test connectivity to a Vault storage destination. Useful for verifying storage configuration or diagnosing connection issues.
+Do a connection test for a Vault storage destination.
 
 **Parameters:**
 
@@ -301,21 +269,21 @@ data:
   storage_id: 1
 ```
 
-The test result will be logged. Check your Home Assistant logs for success or error messages.
+If the test fails, Home Assistant logs the error.
 
 ## Automation Examples
 
 ### Automated Nightly Backups
 
-Create an automation to run your backups at 2 AM every day:
+This automation starts a backup at 02:00 each day.
 
 ```yaml
 automation:
   - alias: "Run Nightly Vault Backups"
-    trigger:
-      - platform: time
+    triggers:
+      - trigger: time
         at: "02:00:00"
-    action:
+    actions:
       - action: vault.run_backup
         data:
           job_name: "Nightly Full Backup"
@@ -323,59 +291,32 @@ automation:
 
 ### Backup Before System Updates
 
-Trigger a backup before running system updates:
-
-```yaml
-automation:
-  - alias: "Backup Before Updates"
-    trigger:
-      - platform: state
-        entity_id: update.home_assistant_core_update
-        to: "on"
-    action:
-      - action: vault.run_backup
-        data:
-          job_id: 1
-      - delay:
-          minutes: 30
-      - action: update.install
-        target:
-          entity_id: update.home_assistant_core_update
-```
+See [Start a backup when a Home Assistant update is available](docs/user/AUTOMATIONS.md#start-a-backup-when-a-home-assistant-update-is-available).
+Before you install the update, make sure that the backup completed. Make sure that its restore point contains Home Assistant.
 
 ### Alert on Backup Failure
 
-Get notified when a backup job fails:
-
-```yaml
-automation:
-  - alias: "Vault Backup Failed Alert"
-    trigger:
-      - platform: state
-        entity_id: binary_sensor.my_backup_job_last_success
-        to: "off"
-        for:
-          minutes: 5
-    action:
-      - action: notify.mobile_app
-        data:
-          title: "Backup Failed"
-          message: "Vault backup job failed. Check the logs."
-```
+See [Show a notification when a backup fails](docs/user/AUTOMATIONS.md#show-a-notification-when-a-backup-fails).
 
 ### Monitor Backup Progress
 
-Track backup progress and show a notification:
+This automation shows a notification with the progress at the start of a backup. Replace the two example entity IDs with the IDs for your job.
 
 ```yaml
 automation:
   - alias: "Backup Progress Notification"
-    trigger:
-      - platform: state
+    triggers:
+      - trigger: state
         entity_id: binary_sensor.my_backup_job_running
+        from: "off"
         to: "on"
-    action:
-      - action: notify.persistent_notification
+    conditions:
+      - condition: state
+        entity_id: binary_sensor.my_backup_job_running
+        attribute: run_type
+        state: backup
+    actions:
+      - action: persistent_notification.create
         data:
           title: "Backup Running"
           message: "Backup job started. Current progress: {{ states('sensor.my_backup_job_progress') }}%"
@@ -383,24 +324,22 @@ automation:
 
 ## Configuration Options
 
+See the [configuration reference](docs/user/CONFIGURATION.md) for the connection procedure and dashboard cards.
+
 ### During Setup
 
-| Name    | Required | Description                                             | Default |
-| ------- | -------- | ------------------------------------------------------- | ------- |
-| Host    | Yes      | Hostname or IP address of your Vault server             | -       |
-| Port    | No       | Port number for Vault API                               | 24085   |
-| API Key | No       | Authentication key (if required by your Vault instance) | -       |
-| TLS     | No       | Enable HTTPS/TLS connection                             | False   |
+| Name                | Required | Description                                             | Default |
+| ------------------- | -------- | ------------------------------------------------------- | ------- |
+| Host                | Yes      | Hostname or IP address of your Vault server             | -       |
+| Port                | No       | Port number for Vault API                               | 24085   |
+| API Key             | No       | Authentication key (if required by your Vault instance) | -       |
+| **Use TLS (HTTPS)** | No       | Use HTTPS for the connection                            | Off     |
 
 ### After Setup (Options)
 
-You can change connection settings anytime:
+You can change the connection settings after setup.
 
-1. Go to **Settings** -> **Devices & Services**
-2. Find **Vault**
-3. Click the **3 dots menu** -> **Reconfigure**
-4. Update the connection settings
-5. Click Submit
+See [Change the connection settings](docs/user/CONFIGURATION.md#change-the-connection-settings).
 
 ## Troubleshooting
 
@@ -408,26 +347,15 @@ You can change connection settings anytime:
 
 #### Check Vault Service
 
-If the **Vault Online** binary sensor shows "Off":
-
-1. Verify your Vault server is running and accessible
-2. Check the host and port settings
-3. Ensure Home Assistant can reach the Vault server (network connectivity)
-4. Verify firewall rules allow access to the Vault port (default: 24085)
-5. Check API key if authentication is required
+If **Online** shows **Disconnected** or **Unavailable**, see [Find connection errors](docs/user/GETTING_STARTED.md#find-connection-errors).
 
 #### Enable TLS
 
-If your Vault server uses HTTPS:
-
-1. Go to **Settings** -> **Devices & Services** -> **Vault**
-2. Click **Reconfigure**
-3. Enable the **TLS** option
-4. Click Submit
+If the Vault connection uses HTTPS, enable **Use TLS (HTTPS)** in [the connection settings](docs/user/CONFIGURATION.md#change-the-connection-settings).
 
 ### Enable Debug Logging
 
-To enable debug logging for this integration, add the following to your `configuration.yaml`:
+To enable debug logging for Vault, add these lines to `configuration.yaml`.
 
 ```yaml
 logger:
@@ -436,93 +364,68 @@ logger:
     custom_components.vault: debug
 ```
 
-Then restart Home Assistant. Check the logs at:
-
-- **Settings** -> **System** -> **Logs**
-- Or in `config/home-assistant.log`
+Restart Home Assistant. Read the logs under **Settings** → **System** → **Logs** or in `config/home-assistant.log`.
 
 ### Common Issues
 
 #### "Cannot Connect" Error
 
-If you receive connection errors:
+If Home Assistant shows **Unable to connect to Vault**, see [Find connection errors](docs/user/GETTING_STARTED.md#find-connection-errors).
 
-1. Verify the Vault server is running: `curl http://YOUR_HOST:24085/api/v1/health`
-2. Check the host and port settings in the integration configuration
-3. Verify network connectivity between Home Assistant and Vault server
-4. Check firewall rules on both sides
-5. Try accessing the Vault API from Home Assistant's container/machine
+To do a connection test from the Home Assistant host, use `curl -i http://YOUR_HOST:24085/ping`. If Vault uses TLS, replace `http` with `https`. A `200` response confirms that the host can connect to Vault.
 
 #### "API Error" Messages
 
-If you receive API-related errors:
+If Home Assistant shows an API error, do these steps.
 
-1. Verify your API key is correct (if authentication is required)
-2. Check the Vault server logs for detailed error messages
-3. Ensure your Vault version is compatible
-4. Download diagnostics (Settings -> Devices & Services -> Vault -> 3 dots -> Download diagnostics)
+1. If Vault uses API key authentication, make sure that the key is correct.
+2. Read the Vault server logs for error messages.
+3. Make sure that the Vault version is compatible.
+4. [Download diagnostic data](docs/user/CONFIGURATION.md#diagnostic-data).
 
 #### No Entities Appearing
 
-If entities aren't showing up:
+If Home Assistant does not show the entities:
 
-1. Verify the **Vault Online** sensor shows "On"
-2. Check that backup jobs are configured in Vault
-3. Wait for the initial data fetch (up to 1 minute)
-4. Reload the integration (Settings -> Devices & Services -> Vault -> 3 dots -> Reload)
-5. Check logs for errors
+1. Make sure that **Online** shows **Connected**.
+2. Make sure that Vault has backup jobs.
+3. Wait for the next data update.
+4. Open the Vault entry under **Settings** → **Devices & Services**.
+5. Select **Reload** from the entry menu.
+6. Read the logs for errors.
 
 #### WebSocket Connection Issues
 
-If real-time updates aren't working:
+If Home Assistant does not receive live updates:
 
-1. WebSocket connections to Vault use the same host/port as the REST API
-2. Check that WebSocket connections aren't blocked by firewalls or proxies
-3. Verify the Vault server supports WebSocket connections
-4. Check logs for WebSocket-specific errors
+1. Make sure that firewalls and proxies let WebSocket connections go to the Vault API host and port.
+2. Read the Home Assistant logs for WebSocket errors.
 
 ## Contributing
 
-Contributions are welcome! Please open an issue or pull request if you have suggestions or improvements.
+See [Contributing](CONTRIBUTING.md) for the issue and pull request procedures.
 
 ### Development Setup
 
-Want to contribute or customize this integration? You have two options:
-
 #### Cloud Development (Recommended)
 
-The easiest way to get started - develop directly in your browser with GitHub Codespaces:
+Use GitHub Codespaces to develop the integration in your browser.
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/tinkerologie/ha-vault?quickstart=1)
 
-- Zero local setup required
-- Pre-configured development environment
-- Home Assistant included for testing
-- 60 hours/month free for personal accounts
+The Codespace has Home Assistant and the development tools.
 
 #### Local Development
 
-Prefer working on your machine? You'll need:
+Install these tools for local development:
 
 - Docker Desktop
 - VS Code with the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
 
-Then:
-
-1. Clone this repository
-2. Open in VS Code
-3. Click "Reopen in Container" when prompted
-
-Both options give you the same fully-configured development environment with Home Assistant, Python 3.14, and all necessary tools.
+1. Clone this repository.
+2. Open the repository in VS Code.
+3. Click **Reopen in Container**.
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details. Earlier releases were MIT licensed; see [NOTICE](NOTICE).
-
-[commits-shield]: https://img.shields.io/github/commit-activity/y/ruaan-deysel/ha-vault.svg?style=for-the-badge
-[commits]: https://github.com/tinkerologie/ha-vault/commits/main
-[hacs]: https://github.com/hacs/integration
-[hacsbadge]: https://img.shields.io/badge/HACS-Default-orange.svg?style=for-the-badge
-[license-shield]: https://img.shields.io/github/license/ruaan-deysel/ha-vault.svg?style=for-the-badge
-[releases-shield]: https://img.shields.io/github/release/ruaan-deysel/ha-vault.svg?style=for-the-badge
-[releases]: https://github.com/tinkerologie/ha-vault/releases
+See [LICENSE](LICENSE) for the Apache License 2.0. See [NOTICE](NOTICE) for the MIT license for previous releases.
