@@ -28,6 +28,7 @@ permissions:
 
 jobs:
   copilot-setup-steps:
+    timeout-minutes: 10
     name: Copilot Setup Steps
     runs-on: ubuntu-latest
 

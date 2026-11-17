@@ -24,6 +24,7 @@ concurrency:
 
 jobs:
   build:
+    timeout-minutes: 60
     name: Build and attest
     runs-on: ubuntu-latest
     permissions:
@@ -97,6 +98,7 @@ jobs:
           retention-days: 7
 
   publish:
+    timeout-minutes: 60
     name: Publish
     needs: build
     if: needs.build.outputs.exists == 'false'
